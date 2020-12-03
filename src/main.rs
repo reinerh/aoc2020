@@ -1,7 +1,8 @@
 #![allow(dead_code)]
 
 use std::fs;
-use std::collections::HashSet;
+use std::cmp;
+use std::collections::{HashSet, HashMap};
 use regex::Regex;
 
 fn read_file(file: &str) -> String {
@@ -13,6 +14,13 @@ fn read_lines(file: &str) -> Vec<String> {
                    .filter(|x| !x.is_empty())
                    .map(String::from)
                    .collect()
+}
+
+fn read_lines_str(input: &str) -> Vec<String> {
+    input.split('\n')
+         .filter(|x| !x.is_empty())
+         .map(String::from)
+         .collect()
 }
 
 fn read_numbers(file: &str) -> Vec<i32> {
@@ -100,8 +108,84 @@ fn day2() {
     println!("2b: {}", count);
 }
 
+#[derive(Eq, PartialEq, Hash, Clone, Copy)]
+struct Point {
+    x: usize,
+    y: usize,
+}
+
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum MapObject {
+    OPEN,
+    TREE,
+}
+
+struct TobogganMap {
+    map: HashMap<Point, MapObject>,
+    height: usize,
+    width: usize,
+}
+
+impl TobogganMap {
+    fn new(input: &[String]) -> TobogganMap {
+        let mut map = HashMap::new();
+        let mut height = 0;
+        let mut width = 0;
+
+        for (y, line) in input.iter().enumerate() {
+            for (x, symbol) in line.chars().enumerate() {
+                let obj = match symbol {
+                    '.' => MapObject::OPEN,
+                    '#' => MapObject::TREE,
+                    _ => panic!("unsupported object"),
+                };
+                map.insert(Point{x, y}, obj);
+                width = cmp::max(x + 1, width);
+            }
+            height = cmp::max(y + 1, height);
+        }
+        TobogganMap { map, height, width }
+    }
+
+    fn obj_at(&self, p: Point) -> MapObject {
+        self.map[&p]
+    }
+
+    fn count_trees(&self, from: &Point, dx: usize, dy: usize) -> usize {
+        let mut pos = *from;
+        let mut count = 0;
+        while pos.y < self.height {
+            pos.x += dx;
+            pos.y += dy;
+            let pos_in_map = Point {
+                x: pos.x % self.width,
+                y: pos.y % self.height,
+            };
+            if pos.y < self.height && self.map[&pos_in_map] == MapObject::TREE {
+                count += 1;
+            }
+        }
+        count
+    }
+}
+
+fn day3() {
+    let input = read_lines("input03");
+    let map = TobogganMap::new(&input);
+
+    let start = Point { x: 0, y: 0 };
+    let slope1 = map.count_trees(&start, 3, 1);
+    println!("3a: {}", slope1);
+
+    let slope2 = map.count_trees(&start, 1, 1);
+    let slope3 = map.count_trees(&start, 5, 1);
+    let slope4 = map.count_trees(&start, 7, 1);
+    let slope5 = map.count_trees(&start, 1, 2);
+    println!("3b: {}", slope1 * slope2 * slope3 * slope4 * slope5);
+}
+
 fn main() {
-    day2();
+    day3();
 }
 
 #[cfg(test)]
@@ -143,5 +227,31 @@ mod tests {
         assert_eq!(entries[1].is_valid_new(), false);
         assert_eq!(entries[2].is_valid_new(), false);
 
+    }
+
+    #[test]
+    fn test_day3() {
+        let input = "..##.......\n\
+                     #...#...#..\n\
+                     .#....#..#.\n\
+                     ..#.#...#.#\n\
+                     .#...##..#.\n\
+                     ..#.##.....\n\
+                     .#.#.#....#\n\
+                     .#........#\n\
+                     #.##...#...\n\
+                     #...##....#\n\
+                     .#..#...#.#\n";
+        let map = TobogganMap::new(&read_lines_str(input));
+        let start = Point { x: 0, y: 0 };
+        let slope1 = map.count_trees(&start, 3, 1);
+        assert_eq!(slope1, 7);
+
+        let slope2 = map.count_trees(&start, 1, 1);
+        let slope3 = map.count_trees(&start, 5, 1);
+        let slope4 = map.count_trees(&start, 7, 1);
+        let slope5 = map.count_trees(&start, 1, 2);
+
+        assert_eq!(slope1 * slope2 * slope3 * slope4 * slope5, 336);
     }
 }
