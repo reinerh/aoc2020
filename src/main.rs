@@ -184,8 +184,123 @@ fn day3() {
     println!("3b: {}", slope1 * slope2 * slope3 * slope4 * slope5);
 }
 
+#[derive(Debug)]
+struct Passport {
+    byr: Option<u32>,
+    iyr: Option<u32>,
+    eyr: Option<u32>,
+    hgt: Option<String>,
+    hcl: Option<String>,
+    ecl: Option<String>,
+    pid: Option<String>,
+    cid: Option<u32>,
+}
+
+impl Passport {
+    fn parse_existence(data: &str) -> Passport {
+        let data = data.replace("\n", " ");
+        let re_byr = r"byr:(.)";
+        let re_iyr = r"iyr:(.)";
+        let re_eyr = r"eyr:(.)";
+        let re_hgt = r"hgt:(.)";
+        let re_hcl = r"hcl:(.)";
+        let re_ecl = r"ecl:(.)";
+        let re_pid = r"pid:(.)";
+        let re_cid = r"cid:(.)";
+
+        Passport {
+            byr : Passport::parse_u32(&data, re_byr),
+            iyr : Passport::parse_u32(&data, re_iyr),
+            eyr : Passport::parse_u32(&data, re_eyr),
+            hgt : Passport::parse_str(&data, re_hgt),
+            hcl : Passport::parse_str(&data, re_hcl),
+            ecl : Passport::parse_str(&data, re_ecl),
+            pid : Passport::parse_str(&data, re_pid),
+            cid : Passport::parse_u32(&data, re_cid),
+        }
+    }
+
+    fn parse(data: &str) -> Passport {
+        let data = data.replace("\n", " ") + " ";
+        let re_byr = r"byr:([0-9]{4}) ";
+        let re_iyr = r"iyr:([0-9]{4}) ";
+        let re_eyr = r"eyr:([0-9]{4}) ";
+        let re_hgt = r"hgt:((1[5-8][0-9]cm)|(19[0-3]cm)|(59in)|(6[0-9]in)|7[0-6]in) ";
+        let re_hcl = r"hcl:(#[0-9a-f]{6}) ";
+        let re_ecl = r"ecl:(amb|blu|brn|gry|grn|hzl|oth) ";
+        let re_pid = r"pid:([0-9]{9}) ";
+        let re_cid = r"cid:([0-9]+) ";
+
+        Passport {
+            byr : Passport::parse_u32(&data, re_byr),
+            iyr : Passport::parse_u32(&data, re_iyr),
+            eyr : Passport::parse_u32(&data, re_eyr),
+            hgt : Passport::parse_str(&data, re_hgt),
+            hcl : Passport::parse_str(&data, re_hcl),
+            ecl : Passport::parse_str(&data, re_ecl),
+            pid : Passport::parse_str(&data, re_pid),
+            cid : Passport::parse_u32(&data, re_cid),
+        }
+    }
+
+    fn parse_u32(data: &str, pattern: &str) -> Option<u32> {
+        let re = Regex::new(pattern).unwrap();
+        match re.captures(data) {
+            Some(caps) => Some(caps.get(1).unwrap().as_str().parse::<u32>().unwrap()),
+            None => None,
+        }
+    }
+
+    fn parse_str(data: &str, pattern: &str) -> Option<String> {
+        let re = Regex::new(pattern).unwrap();
+        match re.captures(data) {
+            Some(caps) => Some(caps.get(1).unwrap().as_str().to_string()),
+            None => None,
+        }
+    }
+
+    fn fields_exist(&self) -> bool {
+        self.byr.is_some() && self.iyr.is_some() && self.eyr.is_some()
+        && self.hgt.is_some() && self.hcl.is_some() && self.ecl.is_some()
+        && self.pid.is_some()
+    }
+
+    fn is_valid(&self) -> bool {
+        let byr = match self.byr {
+            Some(x) => x,
+            None => return false,
+        };
+        let iyr = match self.iyr {
+            Some(x) => x,
+            None => return false,
+        };
+        let eyr = match self.eyr {
+            Some(x) => x,
+            None => return false,
+        };
+
+        self.fields_exist() && byr >= 1920 && byr <= 2002
+            && iyr >= 2010 && iyr <= 2020 && eyr >= 2020 && eyr <= 2030
+    }
+}
+
+fn day4() {
+    let input = read_file("input04");
+    let count = input.split("\n\n")
+                     .map(Passport::parse_existence)
+                     .filter(|x| x.fields_exist())
+                     .count();
+    println!("4a: {}", count);
+
+    let count = input.split("\n\n")
+                     .map(Passport::parse)
+                     .filter(|x| x.is_valid())
+                     .count();
+    println!("4b: {}", count);
+}
+
 fn main() {
-    day3();
+    day4();
 }
 
 #[cfg(test)]
@@ -253,5 +368,37 @@ mod tests {
         let slope5 = map.count_trees(&start, 1, 2);
 
         assert_eq!(slope1 * slope2 * slope3 * slope4 * slope5, 336);
+    }
+
+    #[test]
+    fn test_day4() {
+        let input = "ecl:gry pid:860033327 eyr:2020 hcl:#fffffd\n\
+                     byr:1937 iyr:2017 cid:147 hgt:183cm\n\
+                     \n\
+                     iyr:2013 ecl:amb cid:350 eyr:2023 pid:028048884\n\
+                     hcl:#cfa07d byr:1929\n\
+                     \n\
+                     hcl:#ae17e1 iyr:2013\n\
+                     eyr:2024\n\
+                     ecl:brn pid:760753108 byr:1931\n\
+                     hgt:179cm\n\
+                     \n\
+                     hcl:#cfa07d eyr:2025 pid:166559648\n\
+                     iyr:2011 ecl:brn hgt:59in";
+        let count = input.split("\n\n")
+                         .map(Passport::parse_existence)
+                         .filter(|x| x.fields_exist())
+                         .count();
+        assert_eq!(count, 2);
+
+        assert_eq!(Passport::parse("eyr:1972 cid:100 hcl:#18171d ecl:amb hgt:170 pid:186cm iyr:2018 byr:1926").is_valid(), false);
+        assert_eq!(Passport::parse("iyr:2019 hcl:#602927 eyr:1967 hgt:170cm ecl:grn pid:012533040 byr:1946").is_valid(), false);
+        assert_eq!(Passport::parse("hcl:dab227 iyr:2012 ecl:brn hgt:182cm pid:021572410 eyr:2020 byr:1992 cid:277").is_valid(), false);
+        assert_eq!(Passport::parse("hgt:59cm ecl:zzz eyr:2038 hcl:74454a iyr:2023 pid:3556412378 byr:2007").is_valid(), false);
+
+        assert_eq!(Passport::parse("pid:087499704 hgt:74in ecl:grn iyr:2012 eyr:2030 byr:1980 hcl:#623a2f").is_valid(), true);
+        assert_eq!(Passport::parse("eyr:2029 ecl:blu cid:129 byr:1989 iyr:2014 pid:896056539 hcl:#a97842 hgt:165cm").is_valid(), true);
+        assert_eq!(Passport::parse("hcl:#888785 hgt:164cm byr:2001 iyr:2015 cid:88 pid:545766238 ecl:hzl eyr:2022").is_valid(), true);
+        assert_eq!(Passport::parse("iyr:2010 hgt:158cm hcl:#b6652a ecl:blu byr:1944 eyr:2021 pid:093154719").is_valid(), true);
     }
 }
