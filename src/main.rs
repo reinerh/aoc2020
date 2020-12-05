@@ -299,8 +299,59 @@ fn day4() {
     println!("4b: {}", count);
 }
 
+#[derive(Eq, PartialEq, Hash)]
+struct BoardingPass {
+    row: u32,
+    column: u32,
+}
+
+impl BoardingPass {
+    fn new(input: &str) -> BoardingPass {
+        let input = input.replace("B", "1")
+                         .replace("F", "0")
+                         .replace("R", "1")
+                         .replace("L", "0");
+        let value = u32::from_str_radix(&input, 2).unwrap();
+        BoardingPass {
+            row: value >> 3,
+            column: value & 0x7,
+        }
+    }
+
+    fn seat_id(&self) -> u32 {
+        self.row * 8 + self.column
+    }
+}
+
+fn day5() {
+    let input = read_lines("input05");
+    let mut seats = HashSet::new();
+    for i in input {
+        seats.insert(BoardingPass::new(&i));
+    }
+    let seat_id = seats.iter()
+                       .map(|x| x.seat_id())
+                       .max()
+                       .unwrap();
+    println!("5a: {}", seat_id);
+
+    let mut missing = HashSet::new();
+    for row in 0..=127 {
+        for column in 0..=7 {
+            let bp = BoardingPass { row, column };
+            if !seats.contains(&bp) {
+                missing.insert(bp.seat_id());
+            }
+        }
+    }
+    let your_seat = missing.iter()
+                           .find(|x| !missing.contains(&(*x + 1)) && !missing.contains(&(*x - 1)))
+                           .unwrap();
+    println!("5b: {}", your_seat);
+}
+
 fn main() {
-    day4();
+    day5();
 }
 
 #[cfg(test)]
@@ -400,5 +451,13 @@ mod tests {
         assert_eq!(Passport::parse("eyr:2029 ecl:blu cid:129 byr:1989 iyr:2014 pid:896056539 hcl:#a97842 hgt:165cm").is_valid(), true);
         assert_eq!(Passport::parse("hcl:#888785 hgt:164cm byr:2001 iyr:2015 cid:88 pid:545766238 ecl:hzl eyr:2022").is_valid(), true);
         assert_eq!(Passport::parse("iyr:2010 hgt:158cm hcl:#b6652a ecl:blu byr:1944 eyr:2021 pid:093154719").is_valid(), true);
+    }
+
+    #[test]
+    fn test_day5() {
+        assert_eq!(BoardingPass::new("FBFBBFFRLR").seat_id(), 357);
+        assert_eq!(BoardingPass::new("BFFFBBFRRR").seat_id(), 567);
+        assert_eq!(BoardingPass::new("FFFBBBFRRR").seat_id(), 119);
+        assert_eq!(BoardingPass::new("BBFFBBFRLL").seat_id(), 820);
     }
 }
