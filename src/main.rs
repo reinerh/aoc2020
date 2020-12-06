@@ -350,8 +350,42 @@ fn day5() {
     println!("5b: {}", your_seat);
 }
 
+fn count_unique_answers(input: &str) -> usize {
+    let mut chars = HashSet::new();
+    for c in input.chars().filter(|x| x.is_ascii_lowercase()) {
+        chars.insert(c);
+    }
+    chars.len()
+}
+
+fn count_common_answers(input: &str) -> usize {
+    let mut answers = HashMap::new();
+    let mut person_count = 0;
+    for person in input.trim_end().split('\n') {
+        person_count += 1;
+        for answer in person.chars() {
+            let count = answers.entry(answer).or_insert(0);
+            *count += 1;
+        }
+    }
+    answers.values().filter(|&x| *x == person_count).count()
+}
+
+fn day6() {
+    let input = read_file("input06");
+    let sum : usize = input.split("\n\n")
+                           .map(|x| count_unique_answers(x))
+                           .sum();
+    println!("6a: {}", sum);
+
+    let sum : usize = input.split("\n\n")
+                           .map(|x| count_common_answers(x))
+                           .sum();
+    println!("6b: {}", sum);
+}
+
 fn main() {
-    day5();
+    day6();
 }
 
 #[cfg(test)]
@@ -459,5 +493,19 @@ mod tests {
         assert_eq!(BoardingPass::new("BFFFBBFRRR").seat_id(), 567);
         assert_eq!(BoardingPass::new("FFFBBBFRRR").seat_id(), 119);
         assert_eq!(BoardingPass::new("BBFFBBFRLL").seat_id(), 820);
+    }
+
+    #[test]
+    fn test_day6() {
+        let input = "abc\n\na\nb\nc\n\nab\nac\n\na\na\na\na\n\nb\n";
+        let sum : usize = input.split("\n\n")
+                               .map(|x| count_unique_answers(x))
+                               .sum();
+        assert_eq!(sum, 11);
+
+        let sum : usize = input.split("\n\n")
+                               .map(|x| count_common_answers(x))
+                               .sum();
+        assert_eq!(sum, 6);
     }
 }
