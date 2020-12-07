@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 use std::fs;
+use std::hash::{Hash, Hasher};
 use std::cmp;
 use std::collections::{HashSet, HashMap};
 use regex::Regex;
@@ -384,8 +385,93 @@ fn day6() {
     println!("6b: {}", sum);
 }
 
+#[derive(Clone, Debug)]
+struct Bag {
+    color: String,
+    content: HashMap<String, u32>,
+}
+
+impl Bag {
+    fn new(description: &str) -> Bag {
+        let re = Regex::new(r"([0-9]+) ([a-z ]+) bags?").unwrap();
+        let recipe : Vec<String> = description.split(" bags contain ")
+                                              .map(String::from)
+                                              .collect();
+        assert_eq!(recipe.len(), 2);
+        let mut content = HashMap::new();
+        for cap in re.captures_iter(&recipe[1]) {
+            let amount = cap[1].parse::<u32>().unwrap();
+            let color = &cap[2];
+            content.insert(String::from(color), amount);
+        }
+        Bag {
+            color: recipe[0].clone(),
+            content,
+        }
+    }
+
+    fn can_hold(&self, color: &str) -> bool {
+        self.content.contains_key(color)
+    }
+}
+
+impl Hash for Bag {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.color.hash(state);
+    }
+}
+
+impl PartialEq for Bag {
+    fn eq(&self, other: &Self) -> bool {
+        self.color == other.color
+    }
+}
+
+impl Eq for Bag {}
+
+fn bags_can_hold(bags: &HashSet<Bag>, search: &str) -> HashSet<String> {
+    let mut holders = HashSet::new();
+
+    for bag in bags {
+        if bag.can_hold(search) {
+            holders.insert(bag.color.clone());
+            let outers = bags_can_hold(bags, &bag.color);
+            for outer_bag in outers {
+                holders.insert(outer_bag);
+            }
+        }
+    }
+
+    holders
+}
+
+fn count_contained_bags(bags: &HashSet<Bag>, search: &str) -> u32 {
+    let mut count = 0;
+
+    let bag = bags.iter().find(|x| x.color == search).unwrap();
+    for (color, amount) in &bag.content {
+        count += amount * count_contained_bags(bags, &color);
+    }
+
+    /* including itself */
+    count + 1
+}
+
+fn day7() {
+    let input = read_lines("input07");
+    let mut bags = HashSet::new();
+    for line in input {
+        bags.insert(Bag::new(&line));
+    }
+    let holders = bags_can_hold(&bags, "shiny gold");
+    println!("7a: {}", holders.len());
+
+    println!("7b: {}", count_contained_bags(&bags, "shiny gold") - 1);
+
+}
+
 fn main() {
-    day6();
+    day7();
 }
 
 #[cfg(test)]
@@ -507,5 +593,40 @@ mod tests {
                                .map(|x| count_common_answers(x))
                                .sum();
         assert_eq!(sum, 6);
+    }
+
+    #[test]
+    fn test_day7() {
+        let input = "light red bags contain 1 bright white bag, 2 muted yellow bags.\n\
+                     dark orange bags contain 3 bright white bags, 4 muted yellow bags.\n\
+                     bright white bags contain 1 shiny gold bag.\n\
+                     muted yellow bags contain 2 shiny gold bags, 9 faded blue bags.\n\
+                     shiny gold bags contain 1 dark olive bag, 2 vibrant plum bags.\n\
+                     dark olive bags contain 3 faded blue bags, 4 dotted black bags.\n\
+                     vibrant plum bags contain 5 faded blue bags, 6 dotted black bags.\n\
+                     faded blue bags contain no other bags.\n\
+                     dotted black bags contain no other bags.\n";
+        let input = read_lines_str(input);
+        let mut bags = HashSet::new();
+        for line in input {
+            bags.insert(Bag::new(&line));
+        }
+        let holders = bags_can_hold(&bags, "shiny gold");
+        assert_eq!(holders.len(), 4);
+
+        let input = "shiny gold bags contain 2 dark red bags.\n\
+                     dark red bags contain 2 dark orange bags.\n\
+                     dark orange bags contain 2 dark yellow bags.\n\
+                     dark yellow bags contain 2 dark green bags.\n\
+                     dark green bags contain 2 dark blue bags.\n\
+                     dark blue bags contain 2 dark violet bags.\n\
+                     dark violet bags contain no other bags.\n";
+        let input = read_lines_str(input);
+        let mut bags = HashSet::new();
+        for line in input {
+            bags.insert(Bag::new(&line));
+        }
+        println!("bags: {:?}", bags);
+        assert_eq!(count_contained_bags(&bags, "shiny gold") - 1, 126);
     }
 }
