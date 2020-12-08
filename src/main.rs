@@ -470,8 +470,118 @@ fn day7() {
 
 }
 
+#[derive(Copy, Clone, Debug)]
+enum Instruction {
+    NOP(i32),
+    ACC(i32),
+    JMP(i32),
+}
+
+impl Instruction {
+    fn new(input: &str) -> Instruction {
+        let operands : Vec<&str> = input.split(' ').collect();
+        let (instruction, operand) = (operands[0], operands[1].parse::<i32>().unwrap());
+        match instruction {
+            "nop" => Instruction::NOP(operand),
+            "acc" => Instruction::ACC(operand),
+            "jmp" => Instruction::JMP(operand),
+            _ => panic!("unsupported instruction: {}", instruction),
+        }
+    }
+}
+
+struct GameConsole {
+    instructions: Vec<Instruction>,
+    acc: i32,
+    pc: i32,
+}
+
+impl GameConsole {
+    fn new(input: &[String]) -> GameConsole {
+        let mut instructions = Vec::new();
+        for line in input {
+            instructions.push(Instruction::new(&line));
+        }
+        GameConsole {
+            instructions,
+            acc: 0,
+            pc: 0,
+        }
+    }
+
+    fn step(&mut self) {
+        let instruction = self.instructions[self.pc as usize];
+        match instruction {
+            Instruction::NOP(_) => {
+                self.pc += 1;
+            },
+            Instruction::ACC(val) => {
+                self.acc += val;
+                self.pc += 1;
+            }
+            Instruction::JMP(val) => {
+                self.pc += val;
+            }
+        }
+    }
+
+    fn find_loop(&mut self) -> Option<i32> {
+        let mut visited = HashSet::new();
+        loop {
+            let old_acc = self.acc;
+            self.step();
+            if self.pc >= self.instructions.len() as i32 {
+                return None;
+            }
+            if visited.contains(&self.pc) {
+                return Some(old_acc);
+            }
+            visited.insert(self.pc);
+        }
+    }
+
+    fn terminates(&mut self) -> bool {
+        self.find_loop().is_none()
+    }
+
+    fn reset(&mut self) {
+        self.acc = 0;
+        self.pc = 0;
+    }
+
+    fn repair(&mut self) -> i32 {
+        for (idx, instruction) in self.instructions.iter().enumerate() {
+            let replacement = match instruction {
+                Instruction::NOP(val) => Instruction::JMP(*val),
+                Instruction::ACC(_) => continue,
+                Instruction::JMP(val) => Instruction::NOP(*val),
+            };
+            let mut console = GameConsole {
+                instructions: self.instructions.clone(),
+                acc: 0,
+                pc: 0,
+            };
+            console.instructions[idx] = replacement;
+            if console.terminates() {
+                return console.acc;
+            }
+        }
+        panic!("nothing found");
+    }
+}
+
+fn day8() {
+    let input = read_lines("input08");
+    let mut console = GameConsole::new(&input);
+
+    println!("8a: {}", console.find_loop().unwrap());
+
+    console.reset();
+    println!("8b: {}", console.repair());
+}
+
 fn main() {
-    day7();
+    day8();
 }
 
 #[cfg(test)]
@@ -628,5 +738,24 @@ mod tests {
         }
         println!("bags: {:?}", bags);
         assert_eq!(count_contained_bags(&bags, "shiny gold") - 1, 126);
+    }
+
+    #[test]
+    fn test_day8() {
+        let input = "nop +0\n\
+                     acc +1\n\
+                     jmp +4\n\
+                     acc +3\n\
+                     jmp -3\n\
+                     acc -99\n\
+                     acc +1\n\
+                     jmp -4\n\
+                     acc +6\n";
+        let input = read_lines_str(input);
+        let mut console = GameConsole::new(&input);
+        assert_eq!(console.find_loop().unwrap(), 5);
+
+        console.reset();
+        assert_eq!(console.repair(), 8);
     }
 }
