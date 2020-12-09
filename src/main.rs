@@ -3,7 +3,8 @@
 use std::fs;
 use std::hash::{Hash, Hasher};
 use std::cmp;
-use std::collections::{HashSet, HashMap};
+use std::collections::{HashSet, HashMap, VecDeque};
+use std::iter::FromIterator;
 use regex::Regex;
 
 fn read_file(file: &str) -> String {
@@ -28,6 +29,13 @@ fn read_numbers(file: &str) -> Vec<i32> {
     read_file(file).split('\n')
                    .filter(|x| !x.is_empty())
                    .map(|x| x.parse::<i32>().unwrap())
+                   .collect()
+}
+
+fn read_numbers_64(file: &str) -> Vec<i64> {
+    read_file(file).split('\n')
+                   .filter(|x| !x.is_empty())
+                   .map(|x| x.parse::<i64>().unwrap())
                    .collect()
 }
 
@@ -580,8 +588,49 @@ fn day8() {
     println!("8b: {}", console.repair());
 }
 
+fn find_xmas_number(input: &[i64], prev_count: usize) -> i64 {
+    let mut queue = VecDeque::from_iter(input.iter().copied().take(prev_count));
+
+    for number in input.iter().skip(prev_count) {
+        match queue.iter().find(|x| queue.contains(&(number - *x))) {
+            None => return *number,
+            Some(_) => {
+                queue.pop_front();
+                queue.push_back(*number);
+            },
+        }
+    }
+    panic!("nothing found");
+}
+
+fn find_xmas_weakness(input: &[i64], goal: i64) -> i64 {
+    for (i, _) in input.iter().enumerate() {
+        let mut min = goal;
+        let mut max = 0;
+        let mut sum = 0;
+        for val_j in input.iter().skip(i) {
+            min = cmp::min(min, *val_j);
+            max = cmp::max(max, *val_j);
+            sum += val_j;
+            if sum == goal {
+                return min + max;
+            }
+        }
+    }
+    panic!("nothing found");
+}
+
+fn day9() {
+    let input = read_numbers_64("input09");
+
+    let number = find_xmas_number(&input, 25);
+    println!("9a: {}", number);
+
+    println!("9b: {}", find_xmas_weakness(&input, number));
+}
+
 fn main() {
-    day8();
+    day9();
 }
 
 #[cfg(test)]
@@ -757,5 +806,16 @@ mod tests {
 
         console.reset();
         assert_eq!(console.repair(), 8);
+    }
+
+    #[test]
+    fn test_day9() {
+        let input = [35, 20, 15, 25, 47, 40, 62, 55, 65, 95, 102, 117, 150, 182, 127, 219, 299, 277, 309, 576];
+        let input = Vec::from_iter(input.iter().copied());
+
+        let number = find_xmas_number(&input, 5);
+        assert_eq!(number, 127);
+
+        assert_eq!(find_xmas_weakness(&input, number), 62);
     }
 }
