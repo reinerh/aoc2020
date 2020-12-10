@@ -629,8 +629,91 @@ fn day9() {
     println!("9b: {}", find_xmas_weakness(&input, number));
 }
 
+fn count_jolt_differences(input: &[i32]) -> (i32, i32) {
+    let mut adapters = HashSet::new();
+    for i in input {
+        adapters.insert(*i);
+    }
+    let mut diff1 = 0;
+    let mut diff3 = 0;
+    let max_jolts = *adapters.iter().max().unwrap();
+
+    let mut adapter = 0;
+    loop {
+        if adapters.contains(&(adapter + 1)) {
+            diff1 += 1;
+            adapter += 1;
+            continue;
+        }
+        if adapters.contains(&(adapter + 2)) {
+            adapter += 2;
+            continue;
+        }
+        if adapters.contains(&(adapter + 3)) {
+            diff3 += 1;
+            adapter += 3;
+            continue;
+        }
+        if adapter >= max_jolts {
+            break;
+        }
+        adapter += 1;
+    }
+    diff3 += 1; /* difference to device adapter */
+    (diff1, diff3)
+}
+
+fn count_jolt_paths(map: &HashMap::<i32, Vec<i32>>, path_cache: &mut HashMap::<i32, i64>, from: i32, goal: i32) -> i64 {
+    if from == goal {
+        return 1;
+    }
+    if path_cache.contains_key(&from) {
+        return path_cache[&from];
+    }
+
+    let mut count = 0;
+    for next in &map[&from] {
+        count += count_jolt_paths(map, path_cache, *next, goal);
+    }
+
+    path_cache.insert(from, count);
+
+    count
+}
+
+fn build_jolt_map(input: &[i32]) -> HashMap::<i32, Vec<i32>> {
+    let mut joltmap = HashMap::new();
+    let mut input = Vec::from_iter(input.iter().copied());
+    input.push(0);
+    for i in &input {
+        if input.contains(&(i+1)) {
+            joltmap.entry(*i).or_insert(Vec::new()).push(*i+1);
+        }
+        if input.contains(&(i+2)) {
+            joltmap.entry(*i).or_insert(Vec::new()).push(*i+2);
+        }
+        if input.contains(&(i+3)) {
+            joltmap.entry(*i).or_insert(Vec::new()).push(*i+3);
+        }
+    }
+    joltmap
+}
+
+fn day10() {
+    let input = read_numbers("input10");
+
+    let (diff1, diff3) = count_jolt_differences(&input);
+    println!("10a: {}", diff1 * diff3);
+
+    let max_jolts = *input.iter().max().unwrap();
+    let map = build_jolt_map(&input);
+    let mut path_cache = HashMap::new();
+    let paths = count_jolt_paths(&map, &mut path_cache, 0, max_jolts);
+    println!("10b: {}", paths);
+}
+
 fn main() {
-    day9();
+    day10();
 }
 
 #[cfg(test)]
@@ -817,5 +900,26 @@ mod tests {
         assert_eq!(number, 127);
 
         assert_eq!(find_xmas_weakness(&input, number), 62);
+    }
+
+    #[test]
+    fn test_day10() {
+        let input = [16, 10, 15, 5, 1, 11, 7, 19, 6, 12, 4];
+        assert_eq!(count_jolt_differences(&input), (7, 5));
+
+        let max_jolts = *input.iter().max().unwrap();
+        let map = build_jolt_map(&input);
+        let mut path_cache = HashMap::new();
+        assert_eq!(count_jolt_paths(&map, &mut path_cache, 0, max_jolts), 8);
+
+        let input = [28, 33, 18, 42, 31, 14, 46, 20, 48, 47, 24,
+                     23, 49, 45, 19, 38, 39, 11, 1, 32, 25, 35,
+                     8, 17, 7, 9, 4, 2, 34, 10, 3];
+        assert_eq!(count_jolt_differences(&input), (22, 10));
+
+        let max_jolts = *input.iter().max().unwrap();
+        let map = build_jolt_map(&input);
+        let mut path_cache = HashMap::new();
+        assert_eq!(count_jolt_paths(&map, &mut path_cache, 0, max_jolts), 19208);
     }
 }
