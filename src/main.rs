@@ -117,7 +117,7 @@ fn day2() {
     println!("2b: {}", count);
 }
 
-#[derive(Eq, PartialEq, Hash, Clone, Copy)]
+#[derive(Eq, PartialEq, Hash, Clone, Copy, Debug)]
 struct Point {
     x: usize,
     y: usize,
@@ -712,8 +712,178 @@ fn day10() {
     println!("10b: {}", paths);
 }
 
+#[derive(PartialEq, Eq, Copy, Clone, Debug)]
+enum SeatingObject {
+    FLOOR,
+    EMPTY,
+    OCCUPIED,
+}
+
+struct SeatingMap {
+    map: HashMap<Point, SeatingObject>,
+    dimensions: Point,
+}
+
+impl SeatingMap {
+    fn new(input: &[String]) -> SeatingMap {
+        let mut map = HashMap::new();
+        let mut dimensions = Point { x: 0, y: 0 };
+        for (y, line) in input.iter().enumerate() {
+            for (x, symbol) in line.chars().enumerate() {
+                let obj = match symbol {
+                    '.' => SeatingObject::FLOOR,
+                    'L' => SeatingObject::EMPTY,
+                    '#' => SeatingObject::OCCUPIED,
+                    _ => panic!("unsupported object"),
+                };
+                map.insert(Point{x, y}, obj);
+                dimensions.x = cmp::max(dimensions.x, x + 1);
+            }
+            dimensions.y = cmp::max(dimensions.y, y + 1);
+        }
+        SeatingMap { map, dimensions }
+    }
+
+    fn count_adjacent_occupied(&self, pos: &Point, part2: bool) -> u32 {
+        match part2 {
+            false => self.count_adjacent_occupied1(pos),
+            true  => self.count_adjacent_occupied2(pos),
+        }
+    }
+
+    fn count_adjacent_occupied1(&self, pos: &Point) -> u32 {
+        let mut count = 0;
+        for x in 0..=2 {
+            if pos.x + x == 0 {
+                continue;
+            }
+            for y in 0..=2 {
+                if (x, y) == (1, 1) {
+                    /* skip center point */
+                    continue
+                }
+                if pos.y + y == 0 {
+                    continue;
+                }
+                let pos_check = Point {
+                    x: pos.x + x - 1,
+                    y: pos.y + y - 1
+                };
+                if let Some(SeatingObject::OCCUPIED) = self.map.get(&pos_check) {
+                    count += 1;
+                }
+            }
+        }
+        count
+    }
+
+    fn seat_at_direction(&self, pos: &Point, dx: i32, dy: i32) -> SeatingObject {
+        let mut pos = *pos;
+        loop {
+            if pos.x == 0 && dx < 0 { break; }
+            if pos.y == 0 && dy < 0 { break; }
+            if pos.x == self.dimensions.x - 1 && dx > 0 { break; }
+            if pos.y == self.dimensions.y - 1 && dy > 0 { break; }
+            pos = Point {
+                x: ((pos.x as i32) + dx) as usize,
+                y: ((pos.y as i32) + dy) as usize,
+            };
+            match &self.map[&pos] {
+                SeatingObject::FLOOR => {},
+                state => return *state,
+            }
+        }
+        SeatingObject::FLOOR
+    }
+
+    fn count_adjacent_occupied2(&self, pos: &Point) -> u32 {
+        let mut count = 0;
+
+        if self.seat_at_direction(pos, -1, -1) == SeatingObject::OCCUPIED { count += 1 };
+        if self.seat_at_direction(pos,  0, -1) == SeatingObject::OCCUPIED { count += 1 };
+        if self.seat_at_direction(pos,  1, -1) == SeatingObject::OCCUPIED { count += 1 };
+        if self.seat_at_direction(pos, -1,  0) == SeatingObject::OCCUPIED { count += 1 };
+        if self.seat_at_direction(pos,  1,  0) == SeatingObject::OCCUPIED { count += 1 };
+        if self.seat_at_direction(pos, -1,  1) == SeatingObject::OCCUPIED { count += 1 };
+        if self.seat_at_direction(pos,  0,  1) == SeatingObject::OCCUPIED { count += 1 };
+        if self.seat_at_direction(pos,  1,  1) == SeatingObject::OCCUPIED { count += 1 };
+
+        count
+    }
+
+    fn dump_map(&self) {
+        for y in 0..self.dimensions.y {
+            for x in 0..self.dimensions.x {
+                let pos = Point {x, y};
+                let char = match self.map[&pos] {
+                    SeatingObject::FLOOR => '.',
+                    SeatingObject::EMPTY => 'L',
+                    SeatingObject::OCCUPIED => '#',
+                };
+                print!("{}", char);
+            }
+            println!();
+        }
+        println!();
+    }
+
+    fn step(&mut self, part2: bool) -> HashMap<Point, SeatingObject> {
+        let mut new_map = HashMap::new();
+        let occupied_required = if part2 { 5 } else { 4 };
+        for (pos, obj) in &self.map {
+            let new_state = match *obj {
+                SeatingObject::FLOOR => SeatingObject::FLOOR,
+                SeatingObject::EMPTY => {
+                    if self.count_adjacent_occupied(pos, part2) == 0 {
+                        SeatingObject::OCCUPIED
+                    } else {
+                        SeatingObject::EMPTY
+                    }
+                },
+                SeatingObject::OCCUPIED => {
+                    if self.count_adjacent_occupied(pos, part2) >= occupied_required {
+                        SeatingObject::EMPTY
+                    } else {
+                        SeatingObject::OCCUPIED
+                    }
+                }
+            };
+            new_map.insert(*pos, new_state);
+        }
+        new_map
+    }
+
+    fn stabilize(&mut self, part2: bool) {
+        loop {
+            let new_map = self.step(part2);
+            if new_map == self.map {
+                break;
+            }
+            self.map = new_map;
+        }
+    }
+
+    fn count_occupied(&self) -> usize {
+        self.map.iter()
+                .filter(|(_, state)| *state == &SeatingObject::OCCUPIED)
+                .count()
+    }
+}
+
+fn day11() {
+    let input = read_lines("input11");
+
+    let mut map = SeatingMap::new(&input);
+    map.stabilize(false);
+    println!("11a: {}", map.count_occupied());
+
+    let mut map = SeatingMap::new(&input);
+    map.stabilize(true);
+    println!("11b: {}", map.count_occupied());
+}
+
 fn main() {
-    day10();
+    day11();
 }
 
 #[cfg(test)]
@@ -921,5 +1091,28 @@ mod tests {
         let map = build_jolt_map(&input);
         let mut path_cache = HashMap::new();
         assert_eq!(count_jolt_paths(&map, &mut path_cache, 0, max_jolts), 19208);
+    }
+
+    #[test]
+    fn test_day11() {
+        let input = "L.LL.LL.LL\n\
+                     LLLLLLL.LL\n\
+                     L.L.L..L..\n\
+                     LLLL.LL.LL\n\
+                     L.LL.LL.LL\n\
+                     L.LLLLL.LL\n\
+                     ..L.L.....\n\
+                     LLLLLLLLLL\n\
+                     L.LLLLLL.L\n\
+                     L.LLLLL.LL\n";
+        let input = read_lines_str(input);
+
+        let mut map = SeatingMap::new(&input);
+        map.stabilize(false);
+        assert_eq!(map.count_occupied(), 37);
+
+        let mut map = SeatingMap::new(&input);
+        map.stabilize(true);
+        assert_eq!(map.count_occupied(), 26);
     }
 }
