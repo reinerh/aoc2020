@@ -882,8 +882,154 @@ fn day11() {
     println!("11b: {}", map.count_occupied());
 }
 
+#[derive(Clone, Copy)]
+enum ShipAction {
+    NORTH(i32),
+    SOUTH(i32),
+    EAST(i32),
+    WEST(i32),
+    LEFT(i32),
+    RIGHT(i32),
+    FORWARD(i32),
+}
+
+struct Waypoint {
+    x: i32,
+    y: i32,
+}
+
+struct Ship {
+    x: i32,
+    y: i32,
+    direction: i32,
+    actions: Vec<ShipAction>,
+    waypoint: Waypoint,
+}
+
+impl Ship {
+    fn new(input: &[String]) -> Ship {
+        let mut actions = Vec::new();
+        for string in input {
+            let (ch, val) = string.split_at(1);
+            let val = val.parse::<i32>().unwrap();
+            let action = match ch {
+                "N" => ShipAction::NORTH(val),
+                "S" => ShipAction::SOUTH(val),
+                "E" => ShipAction::EAST(val),
+                "W" => ShipAction::WEST(val),
+                "L" => ShipAction::LEFT(val),
+                "R" => ShipAction::RIGHT(val),
+                "F" => ShipAction::FORWARD(val),
+                _ => panic!("invalid action"),
+            };
+            actions.push(action);
+        }
+        let waypoint = Waypoint { x: 10, y: 1 };
+        Ship {
+            x: 0,
+            y: 0,
+            direction: 90,
+            actions,
+            waypoint,
+        }
+    }
+
+    fn move_ship(&mut self) {
+        for action in self.actions.iter_mut() {
+            match action {
+                ShipAction::NORTH(val) => { self.y += *val; },
+                ShipAction::SOUTH(val) => { self.y -= *val; },
+                ShipAction::EAST(val) => { self.x += *val; },
+                ShipAction::WEST(val) => { self.x -= *val; },
+                ShipAction::LEFT(val) => {
+                    self.direction += 360 - *val;
+                    self.direction %= 360;
+                },
+                ShipAction::RIGHT(val) => {
+                    self.direction += *val;
+                    self.direction %= 360;
+                },
+                ShipAction::FORWARD(val) => {
+                    match self.direction {
+                        0 => { self.y += *val; },
+                        90 => { self.x += *val; },
+                        180 => { self.y -= *val; },
+                        270 => { self.x -= *val; },
+                        _ => panic!("invalid direction"),
+                    }
+                },
+            }
+        }
+    }
+
+    fn move_ship_by_waypoint(&mut self) {
+        for action in self.actions.iter_mut() {
+            match action {
+                ShipAction::NORTH(val) => { self.waypoint.y += *val; },
+                ShipAction::SOUTH(val) => { self.waypoint.y -= *val; },
+                ShipAction::EAST(val) => { self.waypoint.x += *val; },
+                ShipAction::WEST(val) => { self.waypoint.x -= *val; },
+                ShipAction::LEFT(val) => {
+                    self.waypoint = match *val {
+                        90 => Waypoint {
+                                x: -self.waypoint.y,
+                                y: self.waypoint.x,
+                              },
+                        180 => Waypoint {
+                                x: -self.waypoint.x,
+                                y: -self.waypoint.y,
+                              },
+                        270 => Waypoint {
+                                x: self.waypoint.y,
+                                y: -self.waypoint.x,
+                              },
+                        _ => panic!("invalid value"),
+                    }
+                },
+                ShipAction::RIGHT(val) => {
+                    self.waypoint = match *val {
+                        90 => Waypoint {
+                                x: self.waypoint.y,
+                                y: -self.waypoint.x,
+                              },
+                        180 => Waypoint {
+                                x: -self.waypoint.x,
+                                y: -self.waypoint.y,
+                              },
+                        270 => Waypoint {
+                                x: -self.waypoint.y,
+                                y: self.waypoint.x,
+                              },
+                        _ => panic!("invalid value"),
+                    }
+                },
+                ShipAction::FORWARD(val) => {
+                    self.x += *val * self.waypoint.x;
+                    self.y += *val * self.waypoint.y;
+                },
+            }
+        }
+    }
+
+    fn distance(&self) -> i32 {
+        self.x.abs() + self.y.abs()
+    }
+}
+
+fn day12() {
+    let input = read_lines("input12");
+
+    let mut ship = Ship::new(&input);
+    ship.move_ship();
+    println!("12a: {}", ship.distance());
+
+    let mut ship = Ship::new(&input);
+    ship.move_ship_by_waypoint();
+    println!("12b: {}", ship.distance());
+}
+
 fn main() {
-    day11();
+    day12();
 }
 
 #[cfg(test)]
@@ -1114,5 +1260,19 @@ mod tests {
         let mut map = SeatingMap::new(&input);
         map.stabilize(true);
         assert_eq!(map.count_occupied(), 26);
+    }
+
+    #[test]
+    fn test_day12() {
+        let input = "F10\nN3\nF7\nR90\nF11\n";
+        let input = read_lines_str(input);
+
+        let mut ship = Ship::new(&input);
+        ship.move_ship();
+        assert_eq!(ship.distance(), 25);
+
+        let mut ship = Ship::new(&input);
+        ship.move_ship_by_waypoint();
+        assert_eq!(ship.distance(), 286);
     }
 }
