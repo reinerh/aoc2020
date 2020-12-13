@@ -1028,8 +1028,82 @@ fn day12() {
     println!("12b: {}", ship.distance());
 }
 
+fn find_next_bus(time: i64, busses: &[i64]) -> i64 {
+    let mut min_time = i64::MAX;
+    let mut min_bus = 0;
+    for bus in busses {
+        let next = (time + bus) - (time % bus);
+        if next < min_time {
+            min_time = next;
+            min_bus = *bus;
+        }
+    }
+    min_bus * (min_time - time)
+}
+
+/* taken from https://rosettacode.org/wiki/Chinese_remainder_theorem#Rust */
+fn chinese_remainder(residues: &[i64], modulii: &[i64]) -> Option<i64> {
+    fn egcd(a: i64, b: i64) -> (i64, i64, i64) {
+        if a == 0 {
+            (b, 0, 1)
+        } else {
+            let (g, x, y) = egcd(b % a, a);
+            (g, y - (b / a) * x, x)
+        }
+    }
+
+    fn mod_inv(x: i64, n: i64) -> Option<i64> {
+        let (g, x, _) = egcd(x, n);
+        if g == 1 {
+            Some((x % n + n) % n)
+        } else {
+            None
+        }
+    }
+
+    let prod = modulii.iter().product::<i64>();
+
+    let mut sum = 0;
+
+    for (&residue, &modulus) in residues.iter().zip(modulii) {
+        let p = prod / modulus;
+        sum += residue * mod_inv(p, modulus)? * p
+    }
+
+    Some(sum % prod)
+}
+
+fn find_earliest_time(input: &str) -> i64 {
+    let mut residues = Vec::new();
+    let mut modulii = Vec::new();
+    for (residue, modulus) in input.split(",").enumerate() {
+        if modulus == "x" {
+            continue;
+        }
+        let modulus = modulus.parse::<i64>().unwrap();
+        let residue = -(residue as i64); /* time needs to be moved back */
+        let residue = (residue + modulus) % modulus; /* make sure it's positive */
+        modulii.push(modulus);
+        residues.push(residue);
+    }
+    chinese_remainder(&residues, &modulii).unwrap()
+}
+
+fn day13() {
+    let input = read_lines("input13");
+    let time = input[0].parse::<i64>().unwrap();
+    let busses : Vec<i64> = input[1].split(",")
+                                    .filter(|b| *b != "x")
+                                    .map(|b| b.parse::<i64>().unwrap())
+                                    .collect();
+    let next = find_next_bus(time, &busses);
+    println!("13a: {}", next);
+
+    println!("13b: {}", find_earliest_time(&input[1]));
+}
+
 fn main() {
-    day12();
+    day13();
 }
 
 #[cfg(test)]
@@ -1274,5 +1348,17 @@ mod tests {
         let mut ship = Ship::new(&input);
         ship.move_ship_by_waypoint();
         assert_eq!(ship.distance(), 286);
+    }
+
+    #[test]
+    fn test_day13() {
+        assert_eq!(find_next_bus(939, &[7, 13, 59, 31, 19]), 295);
+
+        assert_eq!(find_earliest_time("7,13,x,x,59,x,31,19"), 1068781);
+        assert_eq!(find_earliest_time("17,x,13,19"), 3417);
+        assert_eq!(find_earliest_time("67,7,59,61"), 754018);
+        assert_eq!(find_earliest_time("67,x,7,59,61"), 779210);
+        assert_eq!(find_earliest_time("67,7,x,59,61"), 1261476);
+        assert_eq!(find_earliest_time("1789,37,47,1889"), 1202161486);
     }
 }
