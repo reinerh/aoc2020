@@ -1042,6 +1042,7 @@ fn find_next_bus(time: i64, busses: &[i64]) -> i64 {
 }
 
 /* taken from https://rosettacode.org/wiki/Chinese_remainder_theorem#Rust */
+#[allow(clippy::many_single_char_names)]
 fn chinese_remainder(residues: &[i64], modulii: &[i64]) -> Option<i64> {
     fn egcd(a: i64, b: i64) -> (i64, i64, i64) {
         if a == 0 {
@@ -1076,7 +1077,7 @@ fn chinese_remainder(residues: &[i64], modulii: &[i64]) -> Option<i64> {
 fn find_earliest_time(input: &str) -> i64 {
     let mut residues = Vec::new();
     let mut modulii = Vec::new();
-    for (residue, modulus) in input.split(",").enumerate() {
+    for (residue, modulus) in input.split(',').enumerate() {
         if modulus == "x" {
             continue;
         }
@@ -1092,7 +1093,7 @@ fn find_earliest_time(input: &str) -> i64 {
 fn day13() {
     let input = read_lines("input13");
     let time = input[0].parse::<i64>().unwrap();
-    let busses : Vec<i64> = input[1].split(",")
+    let busses : Vec<i64> = input[1].split(',')
                                     .filter(|b| *b != "x")
                                     .map(|b| b.parse::<i64>().unwrap())
                                     .collect();
@@ -1102,8 +1103,119 @@ fn day13() {
     println!("13b: {}", find_earliest_time(&input[1]));
 }
 
+enum InitializationInstruction {
+    MEM(u64, u64),
+    MASK(String),
+}
+
+struct DockingProgram {
+    instructions: Vec<InitializationInstruction>,
+}
+
+impl DockingProgram {
+    fn new(input: &[String]) -> DockingProgram {
+        let mut instructions = Vec::new();
+
+        for line in input {
+            let instruction : Vec<&str> = line.split(" = ").collect();
+            let cmd = instruction[0];
+            let value = instruction[1];
+
+            let init_instr = if cmd == "mask" {
+                InitializationInstruction::MASK(String::from(value))
+            } else {
+                let end = cmd.find(']').unwrap();
+                let addr = &cmd[4..end].parse::<u64>().unwrap();
+                InitializationInstruction::MEM(*addr, value.parse::<u64>().unwrap())
+            };
+            instructions.push(init_instr);
+        }
+
+        DockingProgram { instructions }
+    }
+
+    fn mask_value(&self, mask: &str, value: u64) -> u64 {
+        let mask0 = u64::from_str_radix(&mask.replace("X", "1"), 2).unwrap();
+        let mask1 = u64::from_str_radix(&mask.replace("X", "0"), 2).unwrap();
+
+        (value & mask0) | mask1
+    }
+
+    fn run(&self) -> u64 {
+        let mut mask = String::new();
+        let mut memory = HashMap::new();
+
+        for instruction in &self.instructions {
+            match instruction {
+                InitializationInstruction::MASK(new_mask) => {
+                    mask = new_mask.clone();
+                },
+                InitializationInstruction::MEM(addr, val) => {
+                    memory.insert(addr, self.mask_value(&mask, *val));
+                },
+            }
+        }
+        memory.values().sum()
+    }
+
+    fn collect_addresses(&self, mask: &str, addr: u64) -> Vec<u64> {
+        let mut addresses = Vec::new();
+        addresses.push(addr);
+
+        let positions : Vec<usize> = mask.chars()
+                                         .enumerate()
+                                         .filter(|(_,x)| *x == 'X')
+                                         .map(|(idx,_)| mask.len() - 1 - idx)
+                                         .collect();
+        for pos in positions {
+            let mut new_addresses = Vec::new();
+            for addr in addresses {
+                let set_bit1 = 1 << pos;
+                new_addresses.push(addr | set_bit1);
+
+                let set_bit0 = !(1 << pos);
+                new_addresses.push(addr & set_bit0);
+            }
+            addresses = new_addresses;
+        }
+
+        addresses
+    }
+
+    fn run_v2(&self) -> u64 {
+        let mut mask = String::new();
+        let mut memory = HashMap::new();
+
+        for instruction in &self.instructions {
+            match instruction {
+                InitializationInstruction::MASK(new_mask) => {
+                    mask = new_mask.clone();
+                },
+                InitializationInstruction::MEM(addr, val) => {
+                    /* overwrite addr with 1s from mask */
+                    let mask_step1 = u64::from_str_radix(&mask.replace("X", "0"), 2).unwrap();
+                    let addr = addr | mask_step1;
+
+                    for new_addr in self.collect_addresses(&mask, addr) {
+                        memory.insert(new_addr, *val);
+                    }
+                },
+            }
+        }
+        memory.values().sum()
+    }
+}
+
+fn day14() {
+    let input = read_lines("input14");
+    let program = DockingProgram::new(&input);
+
+    println!("14a: {}", program.run());
+    println!("14b: {}", program.run_v2());
+}
+
 fn main() {
-    day13();
+    day14();
 }
 
 #[cfg(test)]
@@ -1360,5 +1472,24 @@ mod tests {
         assert_eq!(find_earliest_time("67,x,7,59,61"), 779210);
         assert_eq!(find_earliest_time("67,7,x,59,61"), 1261476);
         assert_eq!(find_earliest_time("1789,37,47,1889"), 1202161486);
+    }
+
+    #[test]
+    fn test_day14() {
+        let input = "mask = XXXXXXXXXXXXXXXXXXXXXXXXXXXXX1XXXX0X\n\
+                     mem[8] = 11\n\
+                     mem[7] = 101\n\
+                     mem[8] = 0\n";
+        let input = read_lines_str(input);
+        let program = DockingProgram::new(&input);
+        assert_eq!(program.run(), 165);
+
+        let input = "mask = 000000000000000000000000000000X1001X\n\
+                     mem[42] = 100\n\
+                     mask = 00000000000000000000000000000000X0XX\n\
+                     mem[26] = 1\n";
+        let input = read_lines_str(input);
+        let program = DockingProgram::new(&input);
+        assert_eq!(program.run_v2(), 208);
     }
 }
