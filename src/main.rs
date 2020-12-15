@@ -1214,8 +1214,39 @@ fn day14() {
     println!("14b: {}", program.run_v2());
 }
 
+fn memory_number(numbers: &[usize], limit: usize) -> usize {
+    let mut memory = HashMap::new();
+    let mut last_number = 0;
+
+    for (i, number) in numbers.iter().enumerate() {
+        memory.insert(*number, (i, i, 0));
+        last_number = *number;
+    }
+
+    for i in memory.len()..limit {
+        let (pos0, pos1, count) = memory[&last_number];
+        last_number = match count {
+            0 => 0,
+            _ => pos1 - pos0,
+        };
+        let update = match memory.get(&last_number) {
+            None => (i, i, 0),
+            Some((_, p1, c)) => (*p1, i, c + 1),
+        };
+        memory.insert(last_number, update);
+    }
+    last_number
+}
+
+fn day15() {
+    let input = [1, 2, 16, 19, 18, 0];
+
+    println!("15a: {}", memory_number(&input, 2020));
+    println!("15b: {}", memory_number(&input, 30000000));
+}
+
 fn main() {
-    day14();
+    day15();
 }
 
 #[cfg(test)]
@@ -1491,5 +1522,24 @@ mod tests {
         let input = read_lines_str(input);
         let program = DockingProgram::new(&input);
         assert_eq!(program.run_v2(), 208);
+    }
+
+    #[test]
+    fn test_day15() {
+        assert_eq!(memory_number(&[1, 3, 2], 2020), 1);
+        assert_eq!(memory_number(&[2, 1, 3], 2020), 10);
+        assert_eq!(memory_number(&[1, 2, 3], 2020), 27);
+        assert_eq!(memory_number(&[2, 3, 1], 2020), 78);
+        assert_eq!(memory_number(&[3, 2, 1], 2020), 438);
+        assert_eq!(memory_number(&[3, 1, 2], 2020), 1836);
+
+        // disabled due to long runtime
+        //assert_eq!(memory_number(&[0, 3, 6], 30000000), 175594);
+        //assert_eq!(memory_number(&[1, 3, 2], 30000000), 2578);
+        //assert_eq!(memory_number(&[2, 1, 3], 30000000), 3544142);
+        //assert_eq!(memory_number(&[1, 2, 3], 30000000), 261214);
+        //assert_eq!(memory_number(&[2, 3, 1], 30000000), 6895259);
+        //assert_eq!(memory_number(&[3, 2, 1], 30000000), 18);
+        //assert_eq!(memory_number(&[3, 1, 2], 30000000), 362);
     }
 }
