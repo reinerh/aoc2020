@@ -1245,8 +1245,157 @@ fn day15() {
     println!("15b: {}", memory_number(&input, 30000000));
 }
 
+#[derive(PartialEq,Eq,Hash)]
+struct TicketRule {
+    name: String,
+    ranges: Vec<(u32, u32)>,
+}
+
+impl TicketRule {
+    fn new(input: &str) -> TicketRule {
+        let tmp : Vec<&str> = input.split(": ").collect();
+        let name = String::from(tmp[0]);
+
+        let mut ranges = Vec::new();
+        for range in tmp[1].split(" or ") {
+            let range : Vec<&str> = range.split('-').collect();
+            let (low, high) = (range[0], range[1]);
+            ranges.push((low.parse::<u32>().unwrap(), high.parse::<u32>().unwrap()));
+        }
+
+        TicketRule {
+            name,
+            ranges,
+        }
+    }
+
+    fn ticket_value_in_range(&self, value: u32) -> bool {
+        for range in &self.ranges {
+            if value >= range.0 && value <= range.1 {
+                return true;
+            }
+        }
+        false
+    }
+}
+
+#[derive(Clone)]
+struct Ticket {
+    values: Vec<u32>,
+}
+
+impl Ticket {
+    fn new(input: &str) -> Ticket {
+        let values = input.split(',')
+                          .map(|x| x.parse::<u32>().unwrap())
+                          .collect();
+        Ticket { values }
+    }
+
+    fn invalid_values(&self, rules: &[TicketRule]) -> Vec<u32> {
+        let mut invalids = Vec::new();
+        for val in &self.values {
+            let mut valid = false;
+            for rule in rules {
+                valid = rule.ticket_value_in_range(*val);
+                if valid { break; }
+            }
+            if !valid {
+                invalids.push(*val);
+            }
+        }
+        invalids
+    }
+}
+
+fn possible_rule_positions(rule: &TicketRule, tickets: &[Ticket]) -> Vec<usize> {
+    let num_rules = tickets[0].values.len();
+
+    let mut rule_counts = vec![0; num_rules];
+    for ticket in tickets {
+        for (idx, val) in ticket.values.iter().enumerate() {
+            if rule.ticket_value_in_range(*val) {
+                rule_counts[idx] += 1;
+            }
+        }
+    }
+
+    /* return positions where the rule was counted for every ticket */
+    rule_counts.iter()
+               .enumerate()
+               .filter(|&(_,count)| *count == tickets.len())
+               .map(|(idx,_)| idx)
+               .collect()
+}
+
+fn find_unique_position(possibilities: &HashMap<&TicketRule, Vec<usize>>) -> Option<usize> {
+    for positions in possibilities.values() {
+        if positions.len() == 1 {
+            return Some(positions[0])
+        }
+    }
+    None
+}
+
+fn find_rules_order(rules: &[TicketRule], tickets: &[Ticket]) -> HashMap<String,usize> {
+    let mut ordered_rules : HashMap<String,usize> = HashMap::new();
+
+    let mut rule_possibilities = HashMap::new();
+    for rule in rules {
+        rule_possibilities.insert(rule, possible_rule_positions(rule, tickets));
+    }
+
+    while let Some(unique_pos) = find_unique_position(&rule_possibilities) {
+        for (rule, positions) in &mut rule_possibilities {
+            let tmp = positions.iter().enumerate().find(|&(_,x)| *x == unique_pos);
+            if let Some((idx,_)) = tmp {
+                if positions.len() == 1 {
+                    ordered_rules.insert(rule.name.clone(), unique_pos);
+                }
+                positions.remove(idx);
+            }
+        }
+    }
+
+    ordered_rules
+}
+
+fn day16() {
+    let input = read_file("input16");
+    let input : Vec<&str> = input.split("\n\n").collect();
+
+    let rules : Vec<TicketRule> = input[0].split('\n')
+                                          .filter(|x| !x.is_empty())
+                                          .map(TicketRule::new)
+                                          .collect();
+    let your_ticket = Ticket::new(input[1].split('\n').nth(1).unwrap());
+
+    let nearby_tickets : Vec<Ticket> = input[2].split('\n')
+                                               .skip(1)
+                                               .filter(|x| !x.is_empty())
+                                               .map(Ticket::new)
+                                               .collect();
+
+    let mut error_rate = 0;
+    for ticket in &nearby_tickets {
+        error_rate += ticket.invalid_values(&rules).iter().sum::<u32>();
+    }
+    println!("16a: {}", error_rate);
+
+    let nearby_tickets : Vec<Ticket> = nearby_tickets.iter()
+                                                     .filter(|x| x.invalid_values(&rules).is_empty())
+                                                     .cloned()
+                                                     .collect();
+    let ordered_rules = find_rules_order(&rules, &nearby_tickets);
+    let result : usize = ordered_rules.iter()
+                                      .filter(|(name,_)| name.starts_with("departure"))
+                                      .map(|(_,pos)| your_ticket.values[*pos] as usize)
+                                      .product();
+    println!("16b: {}", result);
+}
+
 fn main() {
-    day15();
+    day16();
 }
 
 #[cfg(test)]
@@ -1541,5 +1690,67 @@ mod tests {
         //assert_eq!(memory_number(&[2, 3, 1], 30000000), 6895259);
         //assert_eq!(memory_number(&[3, 2, 1], 30000000), 18);
         //assert_eq!(memory_number(&[3, 1, 2], 30000000), 362);
+    }
+
+    #[test]
+    fn test_day16() {
+        let input = "class: 1-3 or 5-7\n\
+                     row: 6-11 or 33-44\n\
+                     seat: 13-40 or 45-50\n\
+                     \n\
+                     your ticket:\n\
+                     7,1,14\n\
+                     \n\
+                     nearby tickets:\n\
+                     7,3,47\n\
+                     40,4,50\n\
+                     55,2,20\n\
+                     38,6,12\n";
+        let input : Vec<&str> = input.split("\n\n").collect();
+
+        let rules : Vec<TicketRule> = input[0].split('\n')
+                                              .map(TicketRule::new)
+                                              .collect();
+
+        let nearby_tickets : Vec<Ticket> = input[2].split('\n')
+                                                   .skip(1)
+                                                   .filter(|x| !x.is_empty())
+                                                   .map(Ticket::new)
+                                                   .collect();
+
+        let mut error_rate = 0;
+        for ticket in &nearby_tickets {
+            error_rate += ticket.invalid_values(&rules).iter().sum::<u32>();
+        }
+        assert_eq!(error_rate, 71);
+
+        let input = "class: 0-1 or 4-19\n\
+                     row: 0-5 or 8-19\n\
+                     seat: 0-13 or 16-19\n\
+                     \n\
+                     your ticket:\n\
+                     11,12,13\n\
+                     \n\
+                     nearby tickets:\n\
+                     3,9,18\n\
+                     15,1,5\n\
+                     5,14,9\n";
+        let input : Vec<&str> = input.split("\n\n").collect();
+
+        let rules : Vec<TicketRule> = input[0].split('\n')
+                                              .map(TicketRule::new)
+                                              .collect();
+
+        let nearby_tickets : Vec<Ticket> = input[2].split('\n')
+                                                   .skip(1)
+                                                   .filter(|x| !x.is_empty())
+                                                   .map(Ticket::new)
+                                                   .filter(|x| x.invalid_values(&rules).len() == 0)
+                                                   .collect();
+
+        let ordered_rules = find_rules_order(&rules, &nearby_tickets);
+        assert_eq!(ordered_rules["row"], 0);
+        assert_eq!(ordered_rules["class"], 1);
+        assert_eq!(ordered_rules["seat"], 2);
     }
 }
