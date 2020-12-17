@@ -1394,8 +1394,133 @@ fn day16() {
     println!("16b: {}", result);
 }
 
+#[derive(Eq, PartialEq, Hash, Clone, Copy, Debug)]
+struct Point4D {
+    x: isize,
+    y: isize,
+    z: isize,
+    w: isize,
+}
+
+struct ConwayMap {
+    map: HashSet<Point4D>,
+    dimensions: (Point4D, Point4D),
+}
+
+impl ConwayMap {
+    fn new(input: &[String]) -> ConwayMap {
+        let mut map = HashSet::new();
+        for (y, line) in input.iter().enumerate() {
+            for (x, c) in line.chars().enumerate() {
+                if c == '#' {
+                    let point = Point4D {
+                        x: x as isize,
+                        y: y as isize,
+                        z: 0,
+                        w: 0,
+                    };
+                    map.insert(point);
+                }
+            }
+        }
+        let dimensions = (Point4D { x:0, y:0, z:0, w:0 }, Point4D { x:0, y:0, z:0, w:0 });
+        ConwayMap { map, dimensions }
+    }
+
+    fn update_dimensions(&mut self, four_d: bool) {
+        let mut lower = Point4D { x:0, y:0, z:0, w:0 };
+        let mut upper = lower;
+
+        for pos in &self.map {
+            lower.x = cmp::min(lower.x, pos.x);
+            lower.y = cmp::min(lower.y, pos.y);
+            lower.z = cmp::min(lower.z, pos.z);
+            lower.w = cmp::min(lower.w, pos.w);
+            upper.x = cmp::max(upper.x, pos.x);
+            upper.y = cmp::max(upper.y, pos.y);
+            upper.z = cmp::max(upper.z, pos.z);
+            upper.w = cmp::max(upper.w, pos.w);
+        }
+        if !four_d {
+            lower.w = 0;
+            upper.w = 0;
+        }
+
+        self.dimensions = (lower, upper);
+    }
+
+    fn count_neighbors(&self, pos: &Point4D, four_d: bool) -> u32 {
+        let mut count = 0;
+        for dx in -1..=1 {
+            for dy in -1..=1 {
+                for dz in -1..=1 {
+                    for dw in -1..=1 {
+                        if !four_d && dw != 0 {
+                            continue;
+                        }
+                        let neighbor = Point4D {
+                            x: pos.x + dx,
+                            y: pos.y + dy,
+                            z: pos.z + dz,
+                            w: pos.w + dw,
+                        };
+                        if neighbor == *pos {
+                            continue;
+                        }
+                        if self.map.contains(&neighbor) {
+                            count += 1;
+                        }
+                    }
+                }
+            }
+        }
+        count
+    }
+
+    fn is_active(&self, pos: &Point4D) -> bool {
+        self.map.contains(&pos)
+    }
+
+    fn step(&mut self, four_d: bool) {
+        self.update_dimensions(four_d);
+        let mut new_map = HashSet::new();
+
+        for x in self.dimensions.0.x - 1 ..= self.dimensions.1.x + 1 {
+            for y in self.dimensions.0.y - 1 ..= self.dimensions.1.y + 1 {
+                for z in self.dimensions.0.z - 1 ..= self.dimensions.1.z + 1 {
+                    for w in self.dimensions.0.w - 1 ..= self.dimensions.1.w + 1 {
+                        let point = Point4D { x, y, z, w };
+                        let neighbors = self.count_neighbors(&point, four_d);
+                        if self.is_active(&point) {
+                            if neighbors == 2 || neighbors == 3 {
+                                new_map.insert(point);
+                            }
+                        } else if neighbors == 3 {
+                            new_map.insert(point);
+                        }
+                    }
+                }
+            }
+        }
+
+        self.map = new_map;
+    }
+}
+
+fn day17() {
+    let input = read_lines("input17");
+
+    let mut map = ConwayMap::new(&input);
+    for _ in 0..6 { map.step(false); }
+    println!("17a: {}", map.map.len());
+
+    let mut map = ConwayMap::new(&input);
+    for _ in 0..6 { map.step(true); }
+    println!("17b: {}", map.map.len());
+}
+
 fn main() {
-    day16();
+    day17();
 }
 
 #[cfg(test)]
@@ -1752,5 +1877,21 @@ mod tests {
         assert_eq!(ordered_rules["row"], 0);
         assert_eq!(ordered_rules["class"], 1);
         assert_eq!(ordered_rules["seat"], 2);
+    }
+
+    #[test]
+    fn test_day17() {
+        let input = ".#.\n\
+                     ..#\n\
+                     ###\n";
+        let input = read_lines_str(&input);
+
+        let mut map = ConwayMap::new(&input);
+        for _ in 0..6 { map.step(false); }
+        assert_eq!(map.map.len(), 112);
+
+        let mut map = ConwayMap::new(&input);
+        for _ in 0..6 { map.step(true); }
+        assert_eq!(map.map.len(), 848);
     }
 }
