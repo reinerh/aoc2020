@@ -1519,8 +1519,69 @@ fn day17() {
     println!("17b: {}", map.map.len());
 }
 
+fn eval_expression_no_brackets(input: &str) -> u64 {
+    let tokens : Vec<&str> = input.split(' ').collect();
+    let mut value = tokens[0].parse::<u64>().unwrap();
+
+    if tokens.len() == 1 {
+        return value;
+    }
+
+    for pair in tokens[1..].chunks(2) {
+        let operation = pair[0];
+        let operand = pair[1].parse::<u64>().unwrap();
+        match operation {
+            "*" => value *= operand,
+            "+" => value += operand,
+            _ => panic!("unsupported operation"),
+        }
+    }
+    value
+}
+
+fn eval_expression_no_brackets_advanced(input: &str) -> u64 {
+    let multiplications : Vec<&str> = input.split(" * ").collect();
+    multiplications.iter()
+                   .map(|x| eval_expression_no_brackets(x))
+                   .product()
+}
+
+fn eval_expression(input: &str, advanced: bool) -> u64 {
+    let re_bracket = Regex::new(r"\(([0-9 +*]+)\)").unwrap();
+    let mut input = String::from(input);
+
+    while let Some(cap) = re_bracket.captures(&input) {
+        let evaluated = if advanced {
+            eval_expression_no_brackets_advanced(cap.get(1).unwrap().as_str())
+        } else {
+            eval_expression_no_brackets(cap.get(1).unwrap().as_str())
+        };
+        input = input.replace(cap.get(0).unwrap().as_str(), &evaluated.to_string());
+    }
+
+    if advanced {
+        eval_expression_no_brackets_advanced(&input)
+    } else {
+        eval_expression_no_brackets(&input)
+    }
+}
+
+fn day18() {
+    let input = read_lines("input18");
+
+    let result : u64 = input.iter()
+                            .map(|x| eval_expression(x, false))
+                            .sum();
+    println!("18a: {}", result);
+
+    let result : u64 = input.iter()
+                            .map(|x| eval_expression(x, true))
+                            .sum();
+    println!("18b: {}", result);
+}
+
 fn main() {
-    day17();
+    day18();
 }
 
 #[cfg(test)]
@@ -1893,5 +1954,22 @@ mod tests {
         let mut map = ConwayMap::new(&input);
         for _ in 0..6 { map.step(true); }
         assert_eq!(map.map.len(), 848);
+    }
+
+    #[test]
+    fn test_day18() {
+        assert_eq!(eval_expression("1 + 2 * 3 + 4 * 5 + 6", false), 71);
+        assert_eq!(eval_expression("1 + (2 * 3) + (4 * (5 + 6))", false), 51);
+        assert_eq!(eval_expression("2 * 3 + (4 * 5)", false), 26);
+        assert_eq!(eval_expression("5 + (8 * 3 + 9 + 3 * 4 * 3)", false), 437);
+        assert_eq!(eval_expression("5 * 9 * (7 * 3 * 3 + 9 * 3 + (8 + 6 * 4))", false), 12240);
+        assert_eq!(eval_expression("((2 + 4 * 9) * (6 + 9 * 8 + 6) + 6) + 2 + 4 * 2", false), 13632);
+
+        assert_eq!(eval_expression("1 + 2 * 3 + 4 * 5 + 6", true), 231);
+        assert_eq!(eval_expression("1 + (2 * 3) + (4 * (5 + 6))", true), 51);
+        assert_eq!(eval_expression("2 * 3 + (4 * 5)", true), 46);
+        assert_eq!(eval_expression("5 + (8 * 3 + 9 + 3 * 4 * 3)", true), 1445);
+        assert_eq!(eval_expression("5 * 9 * (7 * 3 * 3 + 9 * 3 + (8 + 6 * 4))", true), 669060);
+        assert_eq!(eval_expression("((2 + 4 * 9) * (6 + 9 * 8 + 6) + 6) + 2 + 4 * 2", true), 23340);
     }
 }
