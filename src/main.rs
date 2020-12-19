@@ -1580,8 +1580,106 @@ fn day18() {
     println!("18b: {}", result);
 }
 
+enum MsgSubRule {
+    CHAR(char),
+    OPTIONS(Vec<Vec<u32>>),
+}
+
+impl MsgSubRule {
+    fn new(input: &str) -> MsgSubRule {
+        /* check for terminating rule with single character */
+        if let Some(pos) = input.find('"') {
+            return MsgSubRule::CHAR(input.chars().nth(pos+1).unwrap());
+        }
+
+        /* we have a list of subrules */
+        let mut options = Vec::new();
+        let options_str : Vec<&str> = input.split(" | ").collect();
+        for opt in options_str {
+            let mut subrules = Vec::new();
+            let values : Vec<&str> = opt.split(' ').collect();
+            for val in values {
+                let val = val.parse::<u32>().unwrap();
+                subrules.push(val);
+            }
+            options.push(subrules);
+        }
+        MsgSubRule::OPTIONS(options)
+    }
+}
+
+struct MsgRules {
+    rules: HashMap<u32, MsgSubRule>,
+}
+
+impl MsgRules {
+    fn new(input: &[String]) -> MsgRules {
+        let mut rules = HashMap::new();
+        for line in input {
+            let parts : Vec<&str> = line.split(": ").collect();
+            let idx = parts[0].parse::<u32>().unwrap();
+            let subrule = MsgSubRule::new(parts[1]);
+            rules.insert(idx, subrule);
+        }
+        MsgRules { rules }
+    }
+
+    fn matches(&self, msg: &str, idx: u32, remaining: &[u32]) -> bool {
+        let rule = &self.rules[&idx];
+
+        if msg.is_empty() {
+            return false;
+        }
+
+        match rule {
+            MsgSubRule::CHAR(c) => {
+                if remaining.is_empty() {
+                    return c.to_string() == msg;
+                } else {
+                    return *c == msg.chars().next().unwrap()
+                        && self.matches(&msg[1..], remaining[0], &remaining[1..]);
+                }
+            },
+            MsgSubRule::OPTIONS(options) => {
+                for option in options {
+                    let next_idx = option[0];
+                    let remaining = [&option[1..], remaining].concat();
+                    if self.matches(msg, next_idx, &remaining) {
+                        return true;
+                    }
+                }
+            },
+        }
+
+        false
+    }
+
+    fn matches_word(&self, msg: &str) -> bool {
+        self.matches(msg, 0, &[])
+    }
+}
+
+fn day19() {
+    let input = read_file("input19");
+    let input : Vec<&str> = input.split("\n\n").collect();
+    let (rules, messages) = (read_lines_str(input[0]), read_lines_str(input[1]));
+
+    let mut msgrules = MsgRules::new(&rules);
+    let match_count = messages.iter()
+                              .filter(|msg| msgrules.matches_word(msg))
+                              .count();
+    println!("19a: {}", match_count);
+
+    msgrules.rules.insert(8,  MsgSubRule::new("42 | 42 8"));
+    msgrules.rules.insert(11, MsgSubRule::new("42 31 | 42 11 31"));
+    let match_count = messages.iter()
+                              .filter(|msg| msgrules.matches_word(msg))
+                              .count();
+    println!("19b: {}", match_count);
+}
+
 fn main() {
-    day18();
+    day19();
 }
 
 #[cfg(test)]
@@ -1971,5 +2069,87 @@ mod tests {
         assert_eq!(eval_expression("5 + (8 * 3 + 9 + 3 * 4 * 3)", true), 1445);
         assert_eq!(eval_expression("5 * 9 * (7 * 3 * 3 + 9 * 3 + (8 + 6 * 4))", true), 669060);
         assert_eq!(eval_expression("((2 + 4 * 9) * (6 + 9 * 8 + 6) + 6) + 2 + 4 * 2", true), 23340);
+    }
+
+    #[test]
+    fn test_day19() {
+        let input = "0: 4 1 5\n\
+                     1: 2 3 | 3 2\n\
+                     2: 4 4 | 5 5\n\
+                     3: 4 5 | 5 4\n\
+                     4: \"a\"\n\
+                     5: \"b\"\n";
+        let rules = read_lines_str(input);
+
+        let msgrules = MsgRules::new(&rules);
+
+        assert_eq!(msgrules.matches_word("ababbb"), true);
+        assert_eq!(msgrules.matches_word("abbbab"), true);
+        assert_eq!(msgrules.matches_word("bababa"), false);
+        assert_eq!(msgrules.matches_word("aaabbb"), false);
+        assert_eq!(msgrules.matches_word("aaaabbb"), false);
+
+        let input = "42: 9 14 | 10 1\n\
+                     9: 14 27 | 1 26\n\
+                     10: 23 14 | 28 1\n\
+                     1: \"a\"\n\
+                     11: 42 31\n\
+                     5: 1 14 | 15 1\n\
+                     19: 14 1 | 14 14\n\
+                     12: 24 14 | 19 1\n\
+                     16: 15 1 | 14 14\n\
+                     31: 14 17 | 1 13\n\
+                     6: 14 14 | 1 14\n\
+                     2: 1 24 | 14 4\n\
+                     0: 8 11\n\
+                     13: 14 3 | 1 12\n\
+                     15: 1 | 14\n\
+                     17: 14 2 | 1 7\n\
+                     23: 25 1 | 22 14\n\
+                     28: 16 1\n\
+                     4: 1 1\n\
+                     20: 14 14 | 1 15\n\
+                     3: 5 14 | 16 1\n\
+                     27: 1 6 | 14 18\n\
+                     14: \"b\"\n\
+                     21: 14 1 | 1 14\n\
+                     25: 1 1 | 1 14\n\
+                     22: 14 14\n\
+                     8: 42\n\
+                     26: 14 22 | 1 20\n\
+                     18: 15 15\n\
+                     7: 14 5 | 1 21\n\
+                     24: 14 1\n";
+        let rules = read_lines_str(input);
+
+        let mut msgrules = MsgRules::new(&rules);
+        let messages = [
+            "abbbbbabbbaaaababbaabbbbabababbbabbbbbbabaaaa",
+            "bbabbbbaabaabba",
+            "babbbbaabbbbbabbbbbbaabaaabaaa",
+            "aaabbbbbbaaaabaababaabababbabaaabbababababaaa",
+            "bbbbbbbaaaabbbbaaabbabaaa",
+            "bbbababbbbaaaaaaaabbababaaababaabab",
+            "ababaaaaaabaaab",
+            "ababaaaaabbbaba",
+            "baabbaaaabbaaaababbaababb",
+            "abbbbabbbbaaaababbbbbbaaaababb",
+            "aaaaabbaabaaaaababaa",
+            "aaaabbaaaabbaaa",
+            "aaaabbaabbaaaaaaabbbabbbaaabbaabaaa",
+            "babaaabbbaaabaababbaabababaaab",
+            "aabbbbbaabbbaaaaaabbbbbababaaaaabbaaabba",
+        ];
+        let match_count = messages.iter()
+                                  .filter(|msg| msgrules.matches_word(msg))
+                                  .count();
+        assert_eq!(match_count, 3);
+
+        msgrules.rules.insert(8,  MsgSubRule::new("42 | 42 8"));
+        msgrules.rules.insert(11, MsgSubRule::new("42 31 | 42 11 31"));
+        let match_count = messages.iter()
+                                  .filter(|msg| msgrules.matches_word(msg))
+                                  .count();
+        assert_eq!(match_count, 12);
     }
 }
