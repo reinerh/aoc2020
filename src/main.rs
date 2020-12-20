@@ -1678,8 +1678,401 @@ fn day19() {
     println!("19b: {}", match_count);
 }
 
+#[derive(Clone)]
+struct PuzzleTile {
+    pixels: Vec<Vec<char>>,
+    id: u64,
+    borders: Vec<String>,
+}
+
+impl PuzzleTile {
+    fn new(input: &str) -> PuzzleTile {
+        let mut lines = input.split('\n');
+
+        let tileid = lines.next().unwrap()
+                          .split(' ')
+                          .nth(1).unwrap()
+                          .strip_suffix(":").unwrap()
+                          .parse::<u64>().unwrap();
+
+        let mut pixels = Vec::new();
+        for line in lines {
+            let mut linevec = Vec::new();
+            for pixel in line.chars() {
+                linevec.push(pixel);
+            }
+            pixels.push(linevec);
+        }
+
+        let mut borders = Vec::new();
+        let mut border1 = String::new();
+        let mut border2 = String::new();
+        let mut border3 = String::new();
+        let mut border4 = String::new();
+        for i in 0..pixels.len() {
+            border1.push(pixels[0][i]);
+            border2.push(pixels[pixels.len()-1][i]);
+            border3.push(pixels[i][0]);
+            border4.push(pixels[i][pixels.len()-1]);
+        }
+        borders.push(border1); /* top */
+        borders.push(border2); /* bottom */
+        borders.push(border3); /* left */
+        borders.push(border4); /* right */
+
+        PuzzleTile {
+            pixels,
+            id: tileid,
+            borders,
+        }
+    }
+
+    fn has_border(&self, border: &str) -> bool {
+        let rev_border : String = border.chars().rev().collect();
+        self.borders.contains(&String::from(border)) || self.borders.contains(&rev_border)
+    }
+
+    fn has_common_border(&self, tile: &PuzzleTile) -> bool {
+        for border in &tile.borders {
+            if self.has_border(border) {
+                return true;
+            }
+        }
+        false
+    }
+
+    fn border_top(&self) -> String {
+        self.borders[0].clone()
+    }
+
+    fn border_bottom(&self) -> String {
+        self.borders[1].clone()
+    }
+
+    fn border_left(&self) -> String {
+        self.borders[2].clone()
+    }
+
+    fn border_right(&self) -> String {
+        self.borders[3].clone()
+    }
+
+    fn rotate_right(&self) -> PuzzleTile {
+        let mut pixels = Vec::new();
+        for y in 0..self.pixels.len() {
+            let mut linevec = Vec::new();
+            for x in 0..self.pixels.len() {
+                linevec.push(self.pixels[self.pixels.len() - 1 - x][y]);
+            }
+            pixels.push(linevec);
+        }
+        let mut borders = Vec::new();
+        let mut border1 = String::new();
+        let mut border2 = String::new();
+        let mut border3 = String::new();
+        let mut border4 = String::new();
+        for i in 0..pixels.len() {
+            border1.push(pixels[0][i]);
+            border2.push(pixels[pixels.len()-1][i]);
+            border3.push(pixels[i][0]);
+            border4.push(pixels[i][pixels.len()-1]);
+        }
+        borders.push(border1); /* top */
+        borders.push(border2); /* bottom */
+        borders.push(border3); /* left */
+        borders.push(border4); /* right */
+
+        PuzzleTile {
+            pixels,
+            id: self.id,
+            borders,
+        }
+    }
+
+    fn flip_horizontally(&self) -> PuzzleTile {
+        let mut pixels = Vec::new();
+        for line in self.pixels.iter().rev() {
+            pixels.push(line.clone());
+        }
+        let mut borders = self.borders.clone();
+        borders[2] = borders[2].chars().rev().collect();
+        borders[3] = borders[3].chars().rev().collect();
+        PuzzleTile {
+            pixels,
+            id: self.id,
+            borders,
+        }
+    }
+
+    fn orientate_left_border(&self, border: &str) -> PuzzleTile {
+        let mut rotated = self.clone();
+        for i in 0..3 {
+            if i == 1 {
+                rotated = rotated.flip_horizontally();
+            } else if i == 2 {
+                rotated = rotated.flip_horizontally();
+                rotated = rotated.rotate_right();
+                rotated = rotated.flip_horizontally();
+            }
+            for _ in 0..4 {
+                if rotated.border_left() == border {
+                    return rotated;
+                }
+                rotated = rotated.rotate_right();
+            }
+        }
+        panic!("border not found");
+    }
+
+    fn orientate_top_border(&self, border: &str) -> PuzzleTile {
+        let mut rotated = self.clone();
+        for i in 0..3 {
+            if i == 1 {
+                rotated = rotated.flip_horizontally();
+            } else if i == 2 {
+                rotated = rotated.flip_horizontally();
+                rotated = rotated.rotate_right();
+                rotated = rotated.flip_horizontally();
+            }
+            for _ in 0..4 {
+                if rotated.border_top() == border {
+                    return rotated;
+                }
+                rotated = rotated.rotate_right();
+            }
+        }
+        panic!("border not found");
+    }
+
+    fn remove_borders(&self) -> PuzzleTile {
+        let mut pixels = Vec::new();
+        for line in self.pixels.iter().skip(1).take(self.pixels.len() - 2) {
+            let mut line = line.clone();
+            line.pop();
+            line.remove(0);
+            pixels.push(line);
+        }
+        PuzzleTile {
+            pixels,
+            id: self.id,
+            borders: Vec::new(),
+        }
+    }
+
+    fn count_pattern(&self, pattern: &[&str]) -> usize {
+        let mut count = 0;
+        for y in 0..self.pixels.len() - pattern.len() {
+            'next_x: for x in 0..self.pixels[y].len() - pattern[0].len() + 1 {
+                for (pattern_y,_) in pattern.iter().enumerate() {
+                    for pattern_x in 0..pattern[pattern_y].len() {
+                        if let Some('#') = pattern[pattern_y].chars().nth(pattern_x) {
+                            if self.pixels[y + pattern_y][x + pattern_x] != '#' {
+                                continue 'next_x;
+                            }
+                        }
+                    }
+                }
+                count += 1;
+            }
+        }
+        count
+    }
+
+    fn dump(&self) {
+        println!("{}", self.id);
+        for y in 0..self.pixels.len() {
+            for x in 0..self.pixels.len() {
+                print!("{}", self.pixels[y][x]);
+            }
+            println!();
+        }
+        println!();
+    }
+}
+
+fn is_same_border(border1: &str, border2: &str) -> bool{
+    let str1 = String::from(border1);
+    let str2 = String::from(border2);
+    let str2_rev : String = str2.chars().rev().collect();
+    str1 == str2 || str1 == str2_rev
+}
+
+fn find_corner_tiles(tiles: &[PuzzleTile]) -> Vec<u64> {
+    let mut counts = HashMap::new();
+    for tile1 in tiles {
+        for tile2 in tiles {
+            if tile1.id == tile2.id {
+                continue;
+            }
+            if tile1.has_common_border(tile2) {
+                let count = counts.entry(tile1.id).or_insert(0);
+                *count += 1;
+            }
+        }
+    }
+    counts.iter()
+          .filter(|&(_,count)| *count == 2)
+          .map(|(id,_)| *id)
+          .collect()
+}
+
+fn find_corner_product(tiles: &[PuzzleTile]) -> u64 {
+    find_corner_tiles(tiles).iter().product()
+}
+
+fn find_tile_with_border(tiles: &[PuzzleTile], border: &str) -> Option<PuzzleTile> {
+    for tile in tiles {
+        if tile.borders.contains(&String::from(border)) {
+            return Some(tile.clone());
+        }
+    }
+    None
+}
+
+fn find_neighbor_tiles(tiles: &[PuzzleTile], search: &PuzzleTile) -> Vec<PuzzleTile> {
+    let mut neighbors = Vec::new();
+
+    for tile in tiles {
+        if tile.id == search.id {
+            continue;
+        }
+        if search.has_common_border(tile) {
+            neighbors.push(tile.clone())
+        }
+    }
+
+    neighbors
+}
+
+fn find_neighbor_border(tiles: &[PuzzleTile], id: u64, border: &str) -> Option<PuzzleTile> {
+    for tile in tiles {
+        if tile.id == id {
+            continue;
+        }
+        if tile.has_border(border) {
+            return Some(tile.clone())
+        }
+    }
+    None
+}
+
+fn solve_puzzle(tiles: &[PuzzleTile]) -> usize {
+    let mut tile_map = HashMap::new();
+    for tile in tiles {
+        tile_map.insert(tile.id, tile.clone());
+    }
+    let corners = find_corner_tiles(tiles);
+
+    /* roate a corner piece so that it fits in left/upper corner */
+    let mut tile = tile_map[&corners[0]].clone();
+    let neighbors = find_neighbor_tiles(tiles, &tile);
+    assert_eq!(neighbors.len(), 2);
+    loop {
+        /* tile needs to have neighbor at right and at bottom */
+        if (neighbors[0].has_border(&tile.border_right()) && neighbors[1].has_border(&tile.border_bottom()))
+        || (neighbors[1].has_border(&tile.border_right()) && neighbors[0].has_border(&tile.border_bottom())) {
+            break;
+        }
+        tile = tile.rotate_right();
+    }
+
+    /* place new tiles left-to-right, top-to-bottom */
+    let mut puzzle_field = Vec::new();
+    let mut current = tile;
+    loop {
+        let mut puzzle_row = Vec::new();
+        puzzle_row.push(current.clone());
+        while let Some(right) = find_neighbor_border(tiles, current.id, &current.border_right()) {
+            let right = right.orientate_left_border(&current.border_right());
+            puzzle_row.push(right.clone());
+            current = right;
+        }
+        let left = puzzle_row[0].clone();
+        puzzle_field.push(puzzle_row);
+
+        current = match find_neighbor_border(tiles, left.id, &left.border_bottom()) {
+            None => break,
+            Some(t) => {
+                t.orientate_top_border(&left.border_bottom())
+            },
+        };
+    }
+
+    /* all pieces are placed, remove borders */
+    let mut borderless_field = Vec::new();
+    for line in puzzle_field {
+        let mut new_line = Vec::new();
+        for tile in line {
+            new_line.push(tile.remove_borders());
+        }
+        borderless_field.push(new_line);
+    }
+
+    /* merge all tiles into big field */
+    let tile_height = borderless_field[0][0].pixels.len();
+    let mut merged_field = Vec::new();
+    for _ in 0..(tile_height * borderless_field.len()) {
+        let chars : Vec<char> = Vec::new();
+        merged_field.push(chars);
+    }
+    for i in 0..borderless_field.len() {
+        let tile_line = &borderless_field[i];
+        for tile in tile_line {
+            for y in 0..tile.pixels.len() {
+                for x in 0..tile.pixels[y].len() {
+                    merged_field[i * tile_height + y].push(tile.pixels[y][x]);
+                }
+            }
+        }
+    }
+    let mut puzzle_field = PuzzleTile {
+        pixels: merged_field,
+        id: 0,
+        borders: Vec::new(),
+    };
+
+    /* search for pattern */
+    let pattern = [
+        "                  # ",
+        "#    ##    ##    ###",
+        " #  #  #  #  #  #   ",
+    ];
+    let mut pattern_count = 0;
+    'outer: for i in 0..3 {
+        if i == 1 {
+            puzzle_field = puzzle_field.flip_horizontally();
+        } else if i == 2 {
+            puzzle_field = puzzle_field.flip_horizontally();
+            puzzle_field = puzzle_field.rotate_right();
+            puzzle_field = puzzle_field.flip_horizontally();
+        }
+        for _ in 0..4 {
+            let solutions = puzzle_field.count_pattern(&pattern);
+            if solutions > 0 {
+                pattern_count = solutions;
+                break 'outer;
+            }
+            puzzle_field = puzzle_field.rotate_right();
+        }
+    }
+    let total_places = puzzle_field.pixels.iter().flatten().filter(|&x| *x == '#').count();
+    let pattern_places : usize = pattern.iter().map(|x| x.chars().filter(|&x| x == '#').count()).sum();
+    total_places - (pattern_count * pattern_places)
+}
+
+fn day20() {
+    let input = read_file("input20");
+    let tiles : Vec<PuzzleTile> = input.split("\n\n")
+                                       .filter(|x| !x.is_empty())
+                                       .map(PuzzleTile::new)
+                                       .collect();
+
+    println!("20a: {}", find_corner_product(&tiles));
+    println!("20b: {}", solve_puzzle(&tiles));
+}
+
 fn main() {
-    day19();
+    day20();
 }
 
 #[cfg(test)]
@@ -2151,5 +2544,123 @@ mod tests {
                                   .filter(|msg| msgrules.matches_word(msg))
                                   .count();
         assert_eq!(match_count, 12);
+    }
+
+    #[test]
+    fn test_day20() {
+        let input = "Tile 2311:\n\
+                    ..##.#..#.\n\
+                    ##..#.....\n\
+                    #...##..#.\n\
+                    ####.#...#\n\
+                    ##.##.###.\n\
+                    ##...#.###\n\
+                    .#.#.#..##\n\
+                    ..#....#..\n\
+                    ###...#.#.\n\
+                    ..###..###\n\
+                    \n\
+                    Tile 1951:\n\
+                    #.##...##.\n\
+                    #.####...#\n\
+                    .....#..##\n\
+                    #...######\n\
+                    .##.#....#\n\
+                    .###.#####\n\
+                    ###.##.##.\n\
+                    .###....#.\n\
+                    ..#.#..#.#\n\
+                    #...##.#..\n\
+                    \n\
+                    Tile 1171:\n\
+                    ####...##.\n\
+                    #..##.#..#\n\
+                    ##.#..#.#.\n\
+                    .###.####.\n\
+                    ..###.####\n\
+                    .##....##.\n\
+                    .#...####.\n\
+                    #.##.####.\n\
+                    ####..#...\n\
+                    .....##...\n\
+                    \n\
+                    Tile 1427:\n\
+                    ###.##.#..\n\
+                    .#..#.##..\n\
+                    .#.##.#..#\n\
+                    #.#.#.##.#\n\
+                    ....#...##\n\
+                    ...##..##.\n\
+                    ...#.#####\n\
+                    .#.####.#.\n\
+                    ..#..###.#\n\
+                    ..##.#..#.\n\
+                    \n\
+                    Tile 1489:\n\
+                    ##.#.#....\n\
+                    ..##...#..\n\
+                    .##..##...\n\
+                    ..#...#...\n\
+                    #####...#.\n\
+                    #..#.#.#.#\n\
+                    ...#.#.#..\n\
+                    ##.#...##.\n\
+                    ..##.##.##\n\
+                    ###.##.#..\n\
+                    \n\
+                    Tile 2473:\n\
+                    #....####.\n\
+                    #..#.##...\n\
+                    #.##..#...\n\
+                    ######.#.#\n\
+                    .#...#.#.#\n\
+                    .#########\n\
+                    .###.#..#.\n\
+                    ########.#\n\
+                    ##...##.#.\n\
+                    ..###.#.#.\n\
+                    \n\
+                    Tile 2971:\n\
+                    ..#.#....#\n\
+                    #...###...\n\
+                    #.#.###...\n\
+                    ##.##..#..\n\
+                    .#####..##\n\
+                    .#..####.#\n\
+                    #..#.#..#.\n\
+                    ..####.###\n\
+                    ..#.#.###.\n\
+                    ...#.#.#.#\n\
+                    \n\
+                    Tile 2729:\n\
+                    ...#.#.#.#\n\
+                    ####.#....\n\
+                    ..#.#.....\n\
+                    ....#..#.#\n\
+                    .##..##.#.\n\
+                    .#.####...\n\
+                    ####.#.#..\n\
+                    ##.####...\n\
+                    ##..#.##..\n\
+                    #.##...##.\n\
+                    \n\
+                    Tile 3079:\n\
+                    #.#.#####.\n\
+                    .#..######\n\
+                    ..#.......\n\
+                    ######....\n\
+                    ####.#..#.\n\
+                    .#...#.##.\n\
+                    #.#####.##\n\
+                    ..#.###...\n\
+                    ..#.......\n\
+                    ..#.###...\n\n";
+        let tiles : Vec<PuzzleTile> = input.split("\n\n")
+                                           .filter(|x| !x.is_empty())
+                                           .map(PuzzleTile::new)
+                                           .collect();
+
+        assert_eq!(find_corner_product(&tiles), 20899048083289);
+        assert_eq!(solve_puzzle(&tiles), 273);
     }
 }
