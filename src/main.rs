@@ -2071,8 +2071,72 @@ fn day20() {
     println!("20b: {}", solve_puzzle(&tiles));
 }
 
+fn find_allergens(input: &[String]) -> (usize, String) {
+    let re = Regex::new(r"^([a-z ]+) \(contains ([a-z ,]+)\)$").unwrap();
+    let mut allergen_map = HashMap::new();
+    let mut all_ingredients = HashSet::new();
+    for line in input {
+        let caps = re.captures(line).unwrap();
+        let ingredients : HashSet<&str> = caps.get(1).unwrap().as_str().split(' ').collect();
+        let allergens : Vec<&str> = caps.get(2).unwrap().as_str().split(", ").collect();
+        for allergen in allergens {
+            let list = allergen_map.entry(allergen).or_insert(Vec::new());
+            list.push(ingredients.clone());
+        }
+        all_ingredients = all_ingredients.union(&ingredients).cloned().collect();
+    }
+
+    let mut solutions = HashMap::new();
+    let mut known_ingredients = HashSet::new();
+    loop {
+        for (allergen, ingredient_sets) in &allergen_map {
+            let mut unique_set = all_ingredients.clone();
+            for ingr in ingredient_sets {
+                unique_set = unique_set.intersection(ingr).cloned().collect();
+            }
+            unique_set = unique_set.difference(&known_ingredients).cloned().collect();
+            if unique_set.len() == 1 {
+                let ingr = unique_set.iter().cloned().next().unwrap();
+                known_ingredients.insert(ingr);
+                solutions.insert(*allergen, ingr);
+            }
+        }
+        if allergen_map.len() == solutions.len() {
+            break;
+        }
+    }
+
+    /* count non-allergens for part 1 */
+    let no_allergens : HashSet<&str> = all_ingredients.difference(&known_ingredients).cloned().collect();
+    let mut no_allergen_count = 0;
+    for line in input {
+        let caps = re.captures(line).unwrap();
+        no_allergen_count += caps.get(1).unwrap().as_str().split(' ').filter(|x| no_allergens.contains(x)).count();
+    }
+
+    /* build solution string for part 2 */
+    let mut ingredients = String::new();
+    let mut allergens : Vec<&str> = solutions.keys().copied().collect();
+    allergens.sort_unstable();
+    ingredients += solutions[allergens[0]];
+    for allergen in allergens.iter().skip(1) {
+        ingredients += ",";
+        ingredients += solutions[allergen];
+    }
+
+    (no_allergen_count, ingredients)
+}
+
+fn day21() {
+    let input = read_lines("input21");
+
+    let (no_allergen_count, ingredients) = find_allergens(&input);
+    println!("21a: {}", no_allergen_count);
+    println!("21b: {}", ingredients);
+}
+
 fn main() {
-    day20();
+    day21();
 }
 
 #[cfg(test)]
@@ -2662,5 +2726,18 @@ mod tests {
 
         assert_eq!(find_corner_product(&tiles), 20899048083289);
         assert_eq!(solve_puzzle(&tiles), 273);
+    }
+
+    #[test]
+    fn test_day21() {
+        let input = "mxmxvkd kfcds sqjhc nhms (contains dairy, fish)\n\
+                     trh fvjkl sbzzf mxmxvkd (contains dairy)\n\
+                     sqjhc fvjkl (contains soy)\n\
+                     sqjhc mxmxvkd sbzzf (contains fish)\n";
+        let input = read_lines_str(&input);
+
+        let (no_allergen_count, ingredients) = find_allergens(&input);
+        assert_eq!(no_allergen_count, 5);
+        assert_eq!(ingredients, "mxmxvkd,sqjhc,fvjkl");
     }
 }
