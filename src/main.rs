@@ -2135,8 +2135,93 @@ fn day21() {
     println!("21b: {}", ingredients);
 }
 
+fn calculate_score(deck: &VecDeque<usize>) -> usize {
+    let mut score = 0;
+    for (i, val) in deck.iter().rev().enumerate() {
+        score += val * (1 + i);
+    }
+    score
+}
+
+fn find_space_card_winner(player1: &[usize], player2: &[usize]) -> usize {
+    let mut deck1 = VecDeque::from_iter(player1.iter().cloned());
+    let mut deck2 = VecDeque::from_iter(player2.iter().cloned());
+
+    while !deck1.is_empty() && !deck2.is_empty() {
+        let played = (deck1.pop_front().unwrap(), deck2.pop_front().unwrap());
+
+        if played.0 > played.1 {
+            deck1.push_back(played.0);
+            deck1.push_back(played.1);
+        } else {
+            deck2.push_back(played.1);
+            deck2.push_back(played.0);
+        }
+    }
+
+    if deck1.is_empty() {
+        calculate_score(&deck2)
+    } else {
+        calculate_score(&deck1)
+    }
+}
+
+fn find_space_card_winner_recursive(player1: &[usize], player2: &[usize]) -> (usize, usize) {
+    let mut deck1 = VecDeque::from_iter(player1.iter().cloned());
+    let mut deck2 = VecDeque::from_iter(player2.iter().cloned());
+
+    let mut played_decks = HashSet::new();
+
+    while !deck1.is_empty() && !deck2.is_empty() {
+        if played_decks.contains(&(deck1.clone(), deck2.clone())) {
+            return (1, 0);
+        }
+        played_decks.insert((deck1.clone(), deck2.clone()));
+        let played = (deck1.pop_front().unwrap(), deck2.pop_front().unwrap());
+
+        let round_winner;
+        if deck1.len() >= played.0 && deck2.len() >= played.1 {
+            /* start a sub-game */
+            let subdeck1 = Vec::from_iter(deck1.iter().take(played.0).cloned());
+            let subdeck2 = Vec::from_iter(deck2.iter().take(played.1).cloned());
+            round_winner = find_space_card_winner_recursive(&subdeck1, &subdeck2).0;
+        } else {
+            round_winner = if played.0 > played.1 { 1 } else { 2 };
+        }
+        if round_winner == 1 {
+            deck1.push_back(played.0);
+            deck1.push_back(played.1);
+        } else {
+            deck2.push_back(played.1);
+            deck2.push_back(played.0);
+        }
+    }
+
+    if deck1.is_empty() {
+        (2, calculate_score(&deck2))
+    } else {
+        (1, calculate_score(&deck1))
+    }
+}
+
+fn day22() {
+    let input = read_file("input22");
+    let input : Vec<&str> = input.split("\n\n").collect();
+    let mut player1 = Vec::new();
+    let mut player2 = Vec::new();
+    for card in input[0].split('\n').filter(|x| !x.is_empty()).skip(1) {
+        player1.push(card.parse::<usize>().unwrap());
+    }
+    for card in input[1].split('\n').filter(|x| !x.is_empty()).skip(1) {
+        player2.push(card.parse::<usize>().unwrap());
+    }
+
+    println!("22a: {}", find_space_card_winner(&player1, &player2));
+    println!("22b: {}", find_space_card_winner_recursive(&player1, &player2).1);
+}
+
 fn main() {
-    day21();
+    day22();
 }
 
 #[cfg(test)]
@@ -2739,5 +2824,14 @@ mod tests {
         let (no_allergen_count, ingredients) = find_allergens(&input);
         assert_eq!(no_allergen_count, 5);
         assert_eq!(ingredients, "mxmxvkd,sqjhc,fvjkl");
+    }
+
+    #[test]
+    fn test_day22() {
+        let player1 = [9, 2, 6, 3, 1];
+        let player2 = [5, 8, 4, 7, 10];
+
+        assert_eq!(find_space_card_winner(&player1, &player2), 306);
+        assert_eq!(find_space_card_winner_recursive(&player1, &player2).1, 291);
     }
 }
