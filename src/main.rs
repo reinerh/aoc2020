@@ -2220,8 +2220,98 @@ fn day22() {
     println!("22b: {}", find_space_card_winner_recursive(&player1, &player2).1);
 }
 
+fn play_cups_round(cups: &[usize]) -> Vec<usize> {
+    let current = cups[0];
+    let pickup = &cups[1..=3];
+
+    let mut destination = (current + cups.len() - 2) % cups.len() + 1;
+    while pickup.contains(&destination) {
+        destination = (destination + cups.len() - 2) % cups.len() + 1;
+    }
+    let dest_pos = cups.iter().position(|x| *x == destination).unwrap();
+
+    let mut new_cups = Vec::new();
+    for cup in cups.iter().skip(4).take(dest_pos - 3) {
+        new_cups.push(*cup);
+    }
+    for cup in pickup {
+        new_cups.push(*cup);
+    }
+    for cup in cups.iter().skip(dest_pos + 1) {
+        new_cups.push(*cup);
+    }
+    new_cups.push(current);
+
+    new_cups
+}
+
+fn play_cups_game(cups: &[usize], rounds: usize) -> usize {
+    let mut cups = Vec::from(cups);
+    for _ in 0..rounds {
+        cups = play_cups_round(&cups);
+    }
+
+    let pos_1 = cups.iter().position(|x| *x == 1).unwrap();
+    let mut result = 0;
+    for cup in cups.iter().skip(pos_1 + 1) {
+        result *= 10;
+        result += cup;
+    }
+    for cup in cups.iter().take(pos_1) {
+        result *= 10;
+        result += cup;
+    }
+    result
+}
+
+fn play_cups_game2(cups: &[usize], rounds: usize) -> usize {
+    let mut circle = HashMap::new();
+
+    for (i, cup) in cups.iter().enumerate().take(cups.len() - 1) {
+        circle.insert(*cup, cups[i+1]);
+    }
+    circle.insert(*cups.last().unwrap(), cups[0]);
+
+    let mut current = cups[0];
+
+    for _ in 0..rounds {
+        let pickup1 = *circle.get(&current).unwrap();
+        let pickup2 = *circle.get(&pickup1).unwrap();
+        let pickup3 = *circle.get(&pickup2).unwrap();
+        let after_pickup = *circle.get(&pickup3).unwrap();
+
+        let mut dest = (current + cups.len() - 2) % cups.len() + 1;
+        while dest == pickup1 || dest == pickup2 || dest == pickup3 {
+            dest = (dest + cups.len() - 2) % cups.len() + 1;
+        }
+
+        let after_dest = *circle.get(&dest).unwrap();
+
+        circle.insert(current, after_pickup);
+        circle.insert(pickup3, after_dest);
+        circle.insert(dest, pickup1);
+
+        current = after_pickup;
+    }
+
+    let after_1 = *circle.get(&1).unwrap();
+    after_1 * circle.get(&after_1).unwrap()
+}
+
+fn day23() {
+    let input = [1, 5, 6, 7, 9, 4, 8, 2, 3];
+
+    println!("23a: {}", play_cups_game(&input, 100));
+
+    let mut input = Vec::from(input);
+    for i in input.len()+1..=1000000 {
+        input.push(i);
+    }
+    println!("23b: {}", play_cups_game2(&input, 10000000));
+}
+
 fn main() {
-    day22();
+    day23();
 }
 
 #[cfg(test)]
@@ -2833,5 +2923,19 @@ mod tests {
 
         assert_eq!(find_space_card_winner(&player1, &player2), 306);
         assert_eq!(find_space_card_winner_recursive(&player1, &player2).1, 291);
+    }
+
+    #[test]
+    fn test_day23() {
+        let input = [3, 8, 9, 1, 2, 5, 4, 6, 7];
+
+        assert_eq!(play_cups_game(&input, 10), 92658374);
+        assert_eq!(play_cups_game(&input, 100), 67384529);
+
+        let mut input = Vec::from(input);
+        for i in input.len()+1..=1000000 {
+            input.push(i);
+        }
+        assert_eq!(play_cups_game2(&input, 10000000), 149245887792);
     }
 }
