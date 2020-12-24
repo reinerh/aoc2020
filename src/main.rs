@@ -2310,8 +2310,155 @@ fn day23() {
     println!("23b: {}", play_cups_game2(&input, 10000000));
 }
 
+#[derive(PartialEq,Eq,Copy,Clone,Hash)]
+struct Pointi {
+    x: isize,
+    y: isize,
+}
+
+enum HexDirection {
+    SE,
+    NE,
+    SW,
+    NW,
+    W,
+    E,
+}
+
+fn parse_directions(input: &[String]) -> Vec<Vec<HexDirection>> {
+    let mut directions_list = Vec::new();
+    let dir_re = Regex::new("([ns]?[ew])").unwrap();
+
+    for line in input {
+        let mut directions = Vec::new();
+        for cap in dir_re.captures_iter(line) {
+            let dir = match cap.get(1).unwrap().as_str() {
+                "e" => HexDirection::E,
+                "w" => HexDirection::W,
+                "ne" => HexDirection::NE,
+                "nw" => HexDirection::NW,
+                "se" => HexDirection::SE,
+                "sw" => HexDirection::SW,
+                _ => panic!("invalid direction"),
+            };
+            directions.push(dir);
+        }
+        directions_list.push(directions);
+    }
+    directions_list
+}
+
+fn flip_tiles(directions_list: &[Vec<HexDirection>]) -> HashMap<Pointi,usize> {
+    let mut flipped = HashMap::new();
+
+    for directions in directions_list {
+        let mut pos = Pointi { x:0, y:0 };
+        for dir in directions {
+            match dir {
+                HexDirection::E => pos.x += 1,
+                HexDirection::W => pos.x -= 1,
+                HexDirection::NE => {
+                    pos.y += 1;
+                    pos.x += 1;
+                },
+                HexDirection::NW => {
+                    pos.y += 1;
+                },
+                HexDirection::SE => {
+                    pos.y -= 1;
+                },
+                HexDirection::SW => {
+                    pos.y -= 1;
+                    pos.x -= 1;
+                },
+            }
+        }
+        let count = flipped.entry(pos).or_insert(0);
+        *count += 1;
+    }
+    flipped
+}
+
+fn count_tile_neighbors(tiles: &[Pointi], tile: &Pointi) -> usize {
+    let mut count = 0;
+    if tiles.iter().any(|pos| (pos.x == tile.x + 1) && (pos.y == tile.y)) {
+        /* east */
+        count += 1;
+    }
+    if tiles.iter().any(|pos| (pos.x == tile.x - 1) && (pos.y == tile.y)) {
+        /* west */
+        count += 1;
+    }
+    if tiles.iter().any(|pos| (pos.x == tile.x - 1) && (pos.y == tile.y - 1)) {
+        /* south-west */
+        count += 1;
+    }
+    if tiles.iter().any(|pos| (pos.x == tile.x) && (pos.y == tile.y - 1)) {
+        /* south-east */
+        count += 1;
+    }
+    if tiles.iter().any(|pos| (pos.x == tile.x) && (pos.y == tile.y + 1)) {
+        /* north-west */
+        count += 1;
+    }
+    if tiles.iter().any(|pos| (pos.x == tile.x + 1) && (pos.y == tile.y + 1)) {
+        /* north-east */
+        count += 1;
+    }
+    count
+}
+
+fn flip_tiles_per_day(black_tiles: &[Pointi]) -> Vec<Pointi> {
+    let mut new_tiles = Vec::new();
+
+    let mut x_min = 0;
+    let mut x_max = 0;
+    let mut y_min = 0;
+    let mut y_max = 0;
+
+    for tile in black_tiles {
+        x_min = cmp::min(x_min, tile.x);
+        y_min = cmp::min(y_min, tile.y);
+        x_max = cmp::max(x_max, tile.x);
+        y_max = cmp::max(y_max, tile.y);
+    }
+
+    for x in x_min-1 ..= x_max+1 {
+        for y in y_min-1 ..= y_max+1 {
+            let current = Pointi { x, y };
+            let neighbors = count_tile_neighbors(black_tiles, &current);
+            if black_tiles.iter().any(|x| *x == current) {
+                if neighbors > 0 && neighbors <= 2 {
+                    /* it stays black */
+                    new_tiles.push(current);
+                }
+            } else if neighbors == 2 {
+                new_tiles.push(current);
+            }
+        }
+    }
+    new_tiles
+}
+
+fn day24() {
+    let input = read_lines("input24");
+
+    let directions_list = parse_directions(&input);
+    let flipped : Vec<Pointi> = flip_tiles(&directions_list).iter()
+                                                            .filter(|(_,val)| *val % 2 == 1)
+                                                            .map(|(pos,_)| *pos)
+                                                            .collect();
+    println!("24a: {}", flipped.len());
+
+    let mut flipped = flipped;
+    for _ in 0..100 {
+        flipped = flip_tiles_per_day(&flipped);
+    }
+    println!("24b: {}", flipped.len());
+}
+
 fn main() {
-    day23();
+    day24();
 }
 
 #[cfg(test)]
@@ -2937,5 +3084,43 @@ mod tests {
             input.push(i);
         }
         assert_eq!(play_cups_game2(&input, 10000000), 149245887792);
+    }
+
+    #[test]
+    fn test_day24() {
+        let input = "sesenwnenenewseeswwswswwnenewsewsw\n\
+                     neeenesenwnwwswnenewnwwsewnenwseswesw\n\
+                     seswneswswsenwwnwse\n\
+                     nwnwneseeswswnenewneswwnewseswneseene\n\
+                     swweswneswnenwsewnwneneseenw\n\
+                     eesenwseswswnenwswnwnwsewwnwsene\n\
+                     sewnenenenesenwsewnenwwwse\n\
+                     wenwwweseeeweswwwnwwe\n\
+                     wsweesenenewnwwnwsenewsenwwsesesenwne\n\
+                     neeswseenwwswnwswswnw\n\
+                     nenwswwsewswnenenewsenwsenwnesesenew\n\
+                     enewnwewneswsewnwswenweswnenwsenwsw\n\
+                     sweneswneswneneenwnewenewwneswswnese\n\
+                     swwesenesewenwneswnwwneseswwne\n\
+                     enesenwswwswneneswsenwnewswseenwsese\n\
+                     wnwnesenesenenwwnenwsewesewsesesew\n\
+                     nenewswnwewswnenesenwnesewesw\n\
+                     eneswnwswnwsenenwnwnwwseeswneewsenese\n\
+                     neswnwewnwnwseenwseesewsenwsweewe\n\
+                     wseweeenwnesenwwwswnew\n";
+        let input = read_lines_str(&input);
+
+        let directions_list = parse_directions(&input);
+        let flipped : Vec<Pointi> = flip_tiles(&directions_list).iter()
+                                                                .filter(|(_,val)| *val % 2 == 1)
+                                                                .map(|(pos,_)| *pos)
+                                                                .collect();
+        assert_eq!(flipped.len(), 10);
+
+        let mut flipped = flipped;
+        for _ in 0..100 {
+            flipped = flip_tiles_per_day(&flipped);
+        }
+        assert_eq!(flipped.len(), 2208);
     }
 }
