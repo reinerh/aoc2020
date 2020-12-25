@@ -2457,8 +2457,52 @@ fn day24() {
     println!("24b: {}", flipped.len());
 }
 
+/* taken from https://rosettacode.org/wiki/Modular_exponentiation#Rust */
+fn mod_exp(n: usize, e: usize, m: usize) -> usize {
+    let mut result = 1;
+    let mut base = n % m;
+    let mut exp = e;
+
+    loop {
+        if exp % 2 == 1 {
+            result *= base;
+            result %= m;
+        }
+        if exp == 1 {
+            return result;
+        }
+        exp /= 2;
+        base *= base;
+        base %= m;
+    }
+}
+
+fn transform_number(subject: usize, loopsize: usize) -> usize {
+    mod_exp(subject, loopsize, 20201227)
+}
+
+fn find_loop(pubkey: usize) -> usize {
+    let mut loops = 2;
+    loop {
+        if transform_number(7, loops) == pubkey {
+            return loops
+        }
+        loops += 1;
+    }
+}
+
+fn day25() {
+    let input = read_lines("input25");
+    let keys = (input[0].parse::<usize>().unwrap(), input[1].parse::<usize>().unwrap());
+
+    let loops = (find_loop(keys.0), find_loop(keys.1));
+    let enc_key = transform_number(keys.0, loops.1);
+    assert_eq!(enc_key, transform_number(keys.1, loops.0));
+    println!("25a: {}", enc_key);
+}
+
 fn main() {
-    day24();
+    day25();
 }
 
 #[cfg(test)]
@@ -3122,5 +3166,18 @@ mod tests {
             flipped = flip_tiles_per_day(&flipped);
         }
         assert_eq!(flipped.len(), 2208);
+    }
+
+    #[test]
+    fn test_day25() {
+        let card_pubkey = 5764801;
+        let door_pubkey = 17807724;
+        assert_eq!(transform_number(7,  8), card_pubkey);
+        assert_eq!(transform_number(7, 11), door_pubkey);
+        assert_eq!(transform_number(card_pubkey, 11), 14897079);
+        assert_eq!(transform_number(door_pubkey,  8), 14897079);
+
+        assert_eq!(find_loop(card_pubkey),  8);
+        assert_eq!(find_loop(door_pubkey), 11);
     }
 }
